@@ -1,0 +1,12 @@
+# Normalise line endings in the repository
+* text=auto
+
+# The Unix wrapper script must keep LF endings or it fails on macOS/Linux
+mvnw text eol=lf
+*.sh text eol=lf
+
+# Windows scripts keep CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.jar binary
