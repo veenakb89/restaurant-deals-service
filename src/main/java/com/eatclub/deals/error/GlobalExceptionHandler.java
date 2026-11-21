@@ -1,7 +1,7 @@
-package com.eatclub.deals.exception;
+package com.eatclub.deals.error;
 
-import com.eatclub.deals.dto.ApiErrorResponse;
-import com.eatclub.deals.dto.ErrorDetail;
+import com.eatclub.deals.exception.FeedUnavailableException;
+import com.eatclub.deals.exception.InvalidTimeOfDayException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -31,36 +31,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(InvalidTimeOfDayException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidTimeOfDay(InvalidTimeOfDayException e) {
-        return error(ErrorCode.INVALID_TIME_OF_DAY, e.getMessage(), e.parameter());
+        return respond(ErrorCode.INVALID_TIME_OF_DAY, e.getMessage(), e.parameter());
     }
 
     @ExceptionHandler(FeedUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleFeedUnavailable(FeedUnavailableException e) {
         log.error("Failed to fetch deal data from upstream source", e);
-        return error(ErrorCode.FEED_UNAVAILABLE, "Deal data source is currently unavailable.", null);
+        return respond(ErrorCode.FEED_UNAVAILABLE);
     }
 
     /** Catch-all: never expose internal details to the client, but log everything. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception e) {
         log.error("Unexpected error", e);
-        return error(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred.", null);
+        return respond(ErrorCode.INTERNAL_ERROR);
     }
 
     /** Converts the errors Spring MVC itself raises into the same body, keeping Spring's status and headers. */
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(
             Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+        logIfServerError(ex, statusCode);
         ErrorCode code = errorCodeFor(ex, statusCode);
+        return jsonResponse(statusCode, headers).body(ApiErrorResponse.of(code, messageFor(ex, code), paramFor(ex)));
+    }
+
+    private static void logIfServerError(Exception ex, HttpStatusCode statusCode) {
         if (statusCode.is5xxServerError()) {
             log.error("Request failed", ex);
         }
-        String param = ex instanceof MissingServletRequestParameterException missing ? missing.getParameterName() : null;
-        ApiErrorResponse response = new ApiErrorResponse(ErrorDetail.of(code, messageFor(ex, statusCode), param));
-        return ResponseEntity.status(statusCode)
-                .headers(headers)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(response);
     }
 
     private static ErrorCode errorCodeFor(Exception ex, HttpStatusCode statusCode) {
@@ -76,21 +75,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return statusCode.is4xxClientError() ? ErrorCode.BAD_REQUEST : ErrorCode.INTERNAL_ERROR;
     }
 
-    /** Spring's own message for client errors; a generic one for server errors, so internals never leak. */
-    private static String messageFor(Exception ex, HttpStatusCode statusCode) {
-        if (ex instanceof NoResourceFoundException) {
-            return "No endpoint found at this URL.";
+    /**
+     * Spring's own explanation for client errors, when it has one; otherwise the code's default message.
+     * Server errors always get the default message, so internals never leak. Not found always uses ours,
+     * because Spring's mentions static resources.
+     */
+    private static String messageFor(Exception ex, ErrorCode code) {
+        if (code == ErrorCode.NOT_FOUND || code.type() == ErrorType.API_ERROR) {
+            return code.defaultMessage();
         }
-        if (statusCode.is4xxClientError() && ex instanceof ErrorResponse errorResponse
-                && errorResponse.getBody().getDetail() != null) {
-            return errorResponse.getBody().getDetail();
-        }
-        return statusCode.is4xxClientError() ? "The request is invalid." : "An unexpected error occurred.";
+        String springDetail = ex instanceof ErrorResponse errorResponse ? errorResponse.getBody().getDetail() : null;
+        return springDetail != null ? springDetail : code.defaultMessage();
     }
 
-    private static ResponseEntity<ApiErrorResponse> error(ErrorCode code, String message, String param) {
-        return ResponseEntity.status(code.status())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiErrorResponse(ErrorDetail.of(code, message, param)));
+    /** The request parameter that caused the error, or {@code null} if none did. */
+    private static String paramFor(Exception ex) {
+        return ex instanceof MissingServletRequestParameterException missing ? missing.getParameterName() : null;
+    }
+
+    private static ResponseEntity<ApiErrorResponse> respond(ErrorCode code) {
+        return respond(code, code.defaultMessage(), null);
+    }
+
+    private static ResponseEntity<ApiErrorResponse> respond(ErrorCode code, String message, String param) {
+        return jsonResponse(code.status(), new HttpHeaders()).body(ApiErrorResponse.of(code, message, param));
+    }
+
+    /** The one place that sets an error response's status, headers and JSON content type. */
+    private static ResponseEntity.BodyBuilder jsonResponse(HttpStatusCode status, HttpHeaders headers) {
+        return ResponseEntity.status(status).headers(headers).contentType(MediaType.APPLICATION_JSON);
     }
 }

@@ -77,6 +77,7 @@ class RestaurantFeedClientTest {
 
     private RestaurantFeedClient client() {
         String url = "http://localhost:" + server.getAddress().getPort() + "/feed.json";
-        return new RestaurantFeedClient(RestClient.builder(), url, Duration.ofSeconds(2), Duration.ofSeconds(2));
+        var properties = new RestaurantFeedProperties(url, Duration.ofSeconds(2), Duration.ofSeconds(2));
+        return new RestaurantFeedClient(RestClient.builder(), properties);
     }
 }

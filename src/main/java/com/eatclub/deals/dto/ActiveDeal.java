@@ -54,7 +54,8 @@ public record ActiveDeal(
         @Schema(description = "Number of deals remaining, as a string", example = "5")
         String qtyLeft) {
 
-    public static ActiveDeal from(Restaurant restaurant, Deal deal) {
+    /** Builds the response item from the feed's restaurant and deal, passing every value through unchanged. */
+    public static ActiveDeal fromFeed(Restaurant restaurant, Deal deal) {
         return new ActiveDeal(
                 restaurant.objectId(),
                 restaurant.name(),

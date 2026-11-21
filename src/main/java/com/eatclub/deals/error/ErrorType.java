@@ -1,4 +1,4 @@
-package com.eatclub.deals.exception;
+package com.eatclub.deals.error;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 

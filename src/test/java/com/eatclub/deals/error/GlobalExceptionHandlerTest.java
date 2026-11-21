@@ -1,7 +1,5 @@
-package com.eatclub.deals.exception;
+package com.eatclub.deals.error;
 
-import com.eatclub.deals.dto.ApiErrorResponse;
-import com.eatclub.deals.dto.ErrorDetail;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;

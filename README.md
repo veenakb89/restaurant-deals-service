@@ -278,12 +278,14 @@ A: It's treated as a feed with no restaurants, so the response is `200` with an 
 
 ```
 src/main/java/com/eatclub/deals
-├── controller/     REST endpoints (DealController)
-├── dto/            API response objects (ActiveDealsResponse, ActiveDeal, PeakTimeResponse, ApiErrorResponse, ErrorDetail)
+├── controller/     REST endpoints: routes and API docs (DealApi), implementation (DealController)
+├── dto/            API request/response bodies; currently responses only (ActiveDealsResponse, ActiveDeal, PeakTimeResponse)
 ├── service/        Business logic (DealService)
 ├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient)
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
-├── exception/      Custom exceptions, error codes and types (ErrorCode, ErrorType) and the global error handler (GlobalExceptionHandler)
+├── error/          HTTP error responses: the global error handler (GlobalExceptionHandler), error codes and types
+│                   (ErrorCode, ErrorType) and the error body (ApiErrorResponse, ErrorDetail)
+├── exception/      Domain exceptions (InvalidTimeOfDayException, FeedUnavailableException)
 ├── config/         Spring configuration (OpenAPI/Swagger)
 └── time/           Time parsing and formatting (TimeOfDayParser, TimeOfDayFormatter) and opening-hours windows (TimeWindow)
 ```

@@ -16,9 +16,10 @@ public record PeakTimeResponse(
         String peakTimeEnd) {
 
     /** No deal is ever active, so there is no peak. */
-    public static final PeakTimeResponse NONE = new PeakTimeResponse(null, null);
+    public static final PeakTimeResponse NO_PEAK = new PeakTimeResponse(null, null);
 
-    public static PeakTimeResponse from(TimeWindow window) {
+    /** The response for a peak window, with times in the feed's format (e.g. {@code 6:00pm}). */
+    public static PeakTimeResponse fromWindow(TimeWindow window) {
         return new PeakTimeResponse(TimeOfDayFormatter.format(window.start()), TimeOfDayFormatter.format(window.end()));
     }
 }

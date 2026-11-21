@@ -1,7 +1,5 @@
-package com.eatclub.deals.dto;
+package com.eatclub.deals.error;
 
-import com.eatclub.deals.exception.ErrorCode;
-import com.eatclub.deals.exception.ErrorType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.v3.oas.annotations.media.Schema;

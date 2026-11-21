@@ -3,6 +3,7 @@ package com.eatclub.deals.time;
 import com.eatclub.deals.exception.InvalidTimeOfDayException;
 
 import java.time.LocalTime;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,30 +36,34 @@ public final class TimeOfDayParser {
      * @throws InvalidTimeOfDayException if {@code raw} is not a supported time
      */
     public static LocalTime parse(String raw, String parameter) {
-        if (raw == null) {
-            throw new InvalidTimeOfDayException(raw, parameter);
-        }
-        Matcher m = PATTERN.matcher(raw.trim());
-        if (!m.matches()) {
-            throw new InvalidTimeOfDayException(raw, parameter);
-        }
+        return toLocalTime(raw).orElseThrow(() -> new InvalidTimeOfDayException(raw, parameter));
+    }
 
+    /** The time, or empty if {@code raw} isn't a supported time. */
+    private static Optional<LocalTime> toLocalTime(String raw) {
+        Matcher m = PATTERN.matcher(raw == null ? "" : raw.trim());
+        if (!m.matches()) {
+            return Optional.empty();
+        }
         int hour = Integer.parseInt(m.group(1));
         int minute = Integer.parseInt(m.group(2));
-        String suffix = m.group(3);
+        String suffix = m.group(3); // "am", "pm" (any case) or null
+        if (minute > 59 || !isValidHour(hour, suffix)) {
+            return Optional.empty();
+        }
+        return Optional.of(LocalTime.of(to24Hour(hour, suffix), minute));
+    }
 
-        if (minute > 59) {
-            throw new InvalidTimeOfDayException(raw, parameter);
+    /** 12-hour times use hours 1–12; 24-hour times use 0–23. */
+    private static boolean isValidHour(int hour, String suffix) {
+        return suffix == null ? hour <= 23 : hour >= 1 && hour <= 12;
+    }
+
+    /** 12am → 0, 1am → 1, 12pm → 12, 3pm → 15; a 24-hour time is returned unchanged. */
+    private static int to24Hour(int hour, String suffix) {
+        if (suffix == null) {
+            return hour;
         }
-        if (suffix != null) {
-            if (hour < 1 || hour > 12) {
-                throw new InvalidTimeOfDayException(raw, parameter);
-            }
-            boolean pm = suffix.equalsIgnoreCase("pm");
-            hour = (hour % 12) + (pm ? 12 : 0);
-        } else if (hour > 23) {
-            throw new InvalidTimeOfDayException(raw, parameter);
-        }
-        return LocalTime.of(hour, minute);
+        return (hour % 12) + (suffix.equalsIgnoreCase("pm") ? 12 : 0);
     }
 }
