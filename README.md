@@ -4,6 +4,7 @@ A Spring Boot API that reads restaurant deal data from
 <https://eccdn.com.au/misc/challengedata.json> and transforms it.
 
 - **Task 1:** `GET /api/deals?timeOfDay=…` returns the deals active at a given time.
+- **Task 2:** `GET /api/deals/peak-time` returns the time window during which the most deals are active.
 
 ## Tech stack
 
@@ -67,6 +68,21 @@ curl "http://localhost:8080/api/deals?timeOfDay=6:00pm"
 }
 ```
 
+### `GET /api/deals/peak-time`
+
+Takes no parameters. Returns the window during which the most deals are active. The start is inclusive and the end exclusive, and times use the same format as the feed.
+
+```bash
+curl "http://localhost:8080/api/deals/peak-time"
+```
+
+```json
+{
+  "peakTimeStart": "6:00pm",
+  "peakTimeEnd": "9:00pm"
+}
+```
+
 ### Errors
 
 Every error returns the same JSON body (`application/json`), and the HTTP status is set on the response:
@@ -115,7 +131,7 @@ A deal is only ever active while its restaurant is open. A deal's own hours must
 | A deal starts before its restaurant opens. When is it active? | Vrindavan 6pm–9pm, deal 3pm–9pm | Active 6pm–9pm | It starts when the restaurant opens. |
 | A deal ends after its restaurant closes. When is it active? | Restaurant 9am–10pm, deal 5pm–11pm | Active 5pm–10pm | It stops when the restaurant closes. |
 | A deal's hours are entirely outside its restaurant's hours. Is it active? | Restaurant 9am–5pm, deal 6pm–8pm | Never active | The restaurant is closed for the whole deal. |
-| A deal has only `open` or only `close`, or one of them is blank. When is it active? *(To be confirmed with the product owner.)* | Restaurant 9am–5pm, deal `open` 6pm and no `close` | Active 9am–5pm; a warning is logged | The partial value is ignored and the deal runs for its restaurant's hours, the same as a deal with no hours. It isn't parsed, so even an unreadable value like `"abc"` is ignored. No deal in the current feed has partial hours. |
+| A deal has only `open` or only `close`, or one of them is blank. When is it active?  | Restaurant 9am–5pm, deal `open` 6pm and no `close` | Active 9am–5pm; a warning is logged | The partial value is ignored and the deal runs for its restaurant's hours, the same as a deal with no hours. It isn't parsed, so even an unreadable value like `"abc"` is ignored. No deal in the current feed has partial hours. |
 | A restaurant has no opening hours, or blank ones. Is it open? | Restaurant with no `open`/`close`, deal with no hours | Active all day | The restaurant is treated as open all day. |
 | A restaurant has only an opening time. Is it open? | Restaurant `open` 9am, no `close` | Active all day | Incomplete restaurant hours count as no hours. |
 
@@ -183,6 +199,56 @@ A: No. Every value is returned exactly as the source gives it, as a string. Exam
 **Q: Why is one response field called `restarantSuburb`?**
 A: The response contract spells it that way, so the field name is returned exactly as specified.
 
+### Peak time
+
+**Q: How is the peak worked out?**
+A: With the same rules as `GET /api/deals`, so asking for any time inside the peak returns the most deals. A deal counts only while both it and its restaurant are open, sold-out deals don't count, and unreadable deals are skipped. The number of active deals can only change at an opening or closing time, so the count is taken at each of those times. Neighbouring stretches with the same highest count are merged into one window. Example: with the current feed the peak is 6:00pm–9:00pm, with 9 deals.
+
+**Q: Are deals or restaurants counted?**
+A: Deals. A restaurant with two active deals counts twice. The two deals that share an ID (Kekou and Gyoza Gyoza) count as two.
+
+**Q: Is the end of the peak included?**
+A: No, the same as opening hours. "6:00pm–9:00pm" means the peak includes 6:00pm and 8:59pm, but not 9:00pm.
+
+**Q: Several separate windows have the same highest count. Which is returned?**
+A: The one that starts earliest in the day, counting from midnight. Example: one deal 9am–11am and one deal 2pm–4pm gives 9:00am–11:00am.
+
+**Q: Can the peak cross midnight?**
+A: Yes. Example: a late-night peak is returned as `"11:00pm"`–`"1:00am"`.
+
+**Q: The highest count lasts all day. What's returned?**
+A: `"12:00am"`–`"12:00am"`. Equal start and end mean all day, as with opening hours.
+
+**Q: No deal is ever active. What's returned?**
+A: `200 OK` with both fields `null`: `{"peakTimeStart": null, "peakTimeEnd": null}`.
+
+**Q: How long is the peak window? Is it a fixed length, e.g. one hour?**
+A: No. The data decides the length. The window starts when the number of active deals reaches its highest value and ends when it drops. The current feed gives 3 hours (6:00pm–9:00pm), but the peak could be 1 minute or 24 hours.
+
+Options considered:
+
+| Option | How it works | Typical use |
+|---|---|---|
+| **Maximum overlap** (chosen) | The window where the most deals are active at the same time, however long it is | Counting things that are active at once, e.g. meeting rooms in use or users online |
+| Fixed-length window | The fixed-length window (e.g. 60 minutes) where the most deals are active | Volume metrics, e.g. the traffic "peak hour" or hourly busyness charts |
+
+Why maximum overlap was chosen:
+- Deals are time ranges, and "when are the most deals available" asks how many are active at once.
+- The response has both a start and an end. With a fixed length, the end would just be the start plus that length.
+- The task doesn't give a length, so a fixed length would be an assumption with no basis.
+- It's exact. A fixed one-hour window would return 6:00pm–7:00pm and miss 7:00pm–9:00pm, which has the same 9 deals.
+
+Trade-off: a very short peak beats a longer one with slightly fewer deals. For example, 10 deals for 1 minute beats 9 deals for 5 hours.
+
+Possible improvements, if the product owner wants them:
+- **Minimum length:** ignore peaks shorter than e.g. 30 minutes.
+- **Fixed-length option:** an optional `?duration=60` parameter for "the best 60 minutes". This would change the contract, since the task says the API takes no parameters.
+- **More detail:** add the number of deals at the peak, or return every tied window instead of only the earliest. This would also change the contract.
+- **Weighting:** count deals by `qtyLeft` or discount instead of counting each deal once.
+
+**Q: What time format does the response use?**
+A: The feed's format: 12-hour, two-digit minutes and lowercase `am`/`pm`, e.g. `6:00pm`. The values can be passed straight to `GET /api/deals` as `timeOfDay`.
+
 ### Data quality
 
 **Q: A deal has hours that can't be read, e.g. `"not-a-time"`. What happens?**
@@ -213,13 +279,13 @@ A: It's treated as a feed with no restaurants, so the response is `200` with an 
 ```
 src/main/java/com/eatclub/deals
 ├── controller/     REST endpoints (DealController)
-├── dto/            API response objects (ActiveDealsResponse, ActiveDeal, ApiErrorResponse, ErrorDetail)
+├── dto/            API response objects (ActiveDealsResponse, ActiveDeal, PeakTimeResponse, ApiErrorResponse, ErrorDetail)
 ├── service/        Business logic (DealService)
 ├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient)
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
 ├── exception/      Custom exceptions, error codes and types (ErrorCode, ErrorType) and the global error handler (GlobalExceptionHandler)
 ├── config/         Spring configuration (OpenAPI/Swagger)
-└── time/           Time parsing (TimeOfDayParser) and opening-hours windows (TimeWindow)
+└── time/           Time parsing and formatting (TimeOfDayParser, TimeOfDayFormatter) and opening-hours windows (TimeWindow)
 ```
 
 The upstream JSON models (`client/model`) are kept separate from the API's response objects (`dto`), so a change in the upstream format doesn't leak into this API's contract.

@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -218,6 +219,73 @@ class DealControllerTest {
                 .andExpect(jsonPath("$.error.code").value("feed_unavailable"))
                 .andExpect(jsonPath("$.error.message").value("Deal data source is currently unavailable."))
                 .andExpect(jsonPath("$.error.param").doesNotExist());
+    }
+
+    @Test
+    void returnsPeakTimeInContractShape() throws Exception {
+        mockMvc.perform(get("/api/deals/peak-time"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.peakTimeStart").value("6:00pm"))
+                .andExpect(jsonPath("$.peakTimeEnd").value("9:00pm"))
+                .andExpect(jsonPath("$.*", hasSize(2)));
+    }
+
+    @Test
+    void peakTimeIsNullWhenNoDealIsActive() throws Exception {
+        when(client.fetch()).thenReturn(TestFeeds.fromJson("{\"restaurants\": []}"));
+
+        mockMvc.perform(get("/api/deals/peak-time"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.peakTimeStart").value(nullValue()))
+                .andExpect(jsonPath("$.peakTimeEnd").value(nullValue()))
+                .andExpect(jsonPath("$.*", hasSize(2)));
+    }
+
+    @Test
+    void allDayPeakIsReturnedAsMidnightToMidnight() throws Exception {
+        when(client.fetch()).thenReturn(TestFeeds.fromJson("""
+                {"restaurants": [{"objectId": "r", "deals": [{"objectId": "d"}]}]}"""));
+
+        mockMvc.perform(get("/api/deals/peak-time"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.peakTimeStart").value("12:00am"))
+                .andExpect(jsonPath("$.peakTimeEnd").value("12:00am"));
+    }
+
+    @Test
+    void peakTimeIgnoresUnexpectedParameters() throws Exception {
+        mockMvc.perform(get("/api/deals/peak-time").param("timeOfDay", "3:00pm"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.peakTimeStart").value("6:00pm"))
+                .andExpect(jsonPath("$.peakTimeEnd").value("9:00pm"));
+    }
+
+    @Test
+    void peakTimeRejectsWrongMethod() throws Exception {
+        mockMvc.perform(post("/api/deals/peak-time"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.error.code").value("method_not_allowed"));
+    }
+
+    @Test
+    void peakTimeUnexpectedErrorReturnsGenericServerError() throws Exception {
+        when(client.fetch()).thenThrow(new IllegalStateException("secret internal detail"));
+
+        mockMvc.perform(get("/api/deals/peak-time"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error.code").value("internal_error"))
+                .andExpect(content().string(not(containsString("secret internal detail"))));
+    }
+
+    @Test
+    void peakTimeReturnsBadGatewayWhenSourceIsDown() throws Exception {
+        when(client.fetch()).thenThrow(new FeedUnavailableException(new ResourceAccessException("timeout")));
+
+        mockMvc.perform(get("/api/deals/peak-time"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error.type").value("api_error"))
+                .andExpect(jsonPath("$.error.code").value("feed_unavailable"));
     }
 
     @Test

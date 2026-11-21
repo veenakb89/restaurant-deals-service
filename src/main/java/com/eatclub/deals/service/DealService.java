@@ -13,7 +13,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Business rules:
@@ -42,10 +45,62 @@ public class DealService {
 
     /** All deals active at the given time that still have quantity left, in source order. */
     public List<ActiveDeal> findActiveDeals(LocalTime time) {
-        return scheduledDeals(feedClient.fetch()).stream()
+        return availableDeals().stream()
                 .filter(d -> d.isActiveAt(time))
-                .filter(d -> hasQuantityLeft(d.deal()))
                 .map(d -> ActiveDeal.from(d.restaurant(), d.deal()))
+                .toList();
+    }
+
+    /**
+     * The time window during which the most deals are active, using the same rules as {@link #findActiveDeals}.
+     * <ul>
+     *   <li>The number of active deals can only change at an opening or closing time, so the count is taken at
+     *       each of those times; it stays the same until the next one.</li>
+     *   <li>Neighbouring stretches with the same highest count are merged, including across midnight.</li>
+     *   <li>If several separate windows tie, the one that starts earliest in the day (from midnight) is returned.</li>
+     *   <li>If the highest count lasts all day, {@link TimeWindow#ALL_DAY} is returned.</li>
+     * </ul>
+     *
+     * @return the peak window, or empty if no deal is ever active
+     */
+    public Optional<TimeWindow> findPeakTime() {
+        List<ScheduledDeal> deals = availableDeals();
+        List<LocalTime> boundaries = deals.stream()
+                .flatMap(ScheduledDeal::boundaries)
+                .distinct()
+                .sorted()
+                .toList();
+
+        // counts[i] is the number of active deals from boundaries[i] until the next boundary.
+        int n = boundaries.size();
+        int[] counts = new int[n];
+        for (int i = 0; i < n; i++) {
+            LocalTime time = boundaries.get(i);
+            counts[i] = (int) deals.stream().filter(d -> d.isActiveAt(time)).count();
+        }
+        int peak = Arrays.stream(counts).max().orElse(0);
+        if (peak == 0) {
+            return Optional.empty();
+        }
+
+        // Boundaries are sorted, so the first peak stretch that follows a lower one starts earliest in the day.
+        for (int i = 0; i < n; i++) {
+            boolean startsAPeak = counts[i] == peak && counts[(i + n - 1) % n] < peak;
+            if (startsAPeak) {
+                int next = (i + 1) % n;
+                while (counts[next] == peak) {
+                    next = (next + 1) % n;
+                }
+                return Optional.of(new TimeWindow(boundaries.get(i), boundaries.get(next)));
+            }
+        }
+        return Optional.of(TimeWindow.ALL_DAY); // the count is at its peak all day
+    }
+
+    /** Every scheduled deal that still has quantity left, in source order. */
+    private List<ScheduledDeal> availableDeals() {
+        return scheduledDeals(feedClient.fetch()).stream()
+                .filter(d -> hasQuantityLeft(d.deal()))
                 .toList();
     }
 
@@ -114,6 +169,11 @@ public class DealService {
 
         boolean isActiveAt(LocalTime time) {
             return restaurantHours.contains(time) && dealHours.contains(time);
+        }
+
+        /** The only times at which this deal can become active or inactive. */
+        Stream<LocalTime> boundaries() {
+            return Stream.of(restaurantHours.start(), restaurantHours.end(), dealHours.start(), dealHours.end());
         }
     }
 }

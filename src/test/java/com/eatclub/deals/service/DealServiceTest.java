@@ -6,6 +6,7 @@ import com.eatclub.deals.client.model.Deal;
 import com.eatclub.deals.client.model.Restaurant;
 import com.eatclub.deals.client.model.RestaurantFeed;
 import com.eatclub.deals.dto.ActiveDeal;
+import com.eatclub.deals.time.TimeWindow;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -376,6 +377,189 @@ class DealServiceTest {
 
             assertThat(activeAt(0, 0)).hasSize(1);
             assertThat(activeAt(12, 0)).hasSize(1);
+        }
+    }
+
+    /** Task 2: the window during which the most deals are active. */
+    @Nested
+    class PeakTime {
+
+        @Test
+        void challengeDataPeaksFrom6pmTo9pm() {
+            // 9 deals from 6pm (Vrindavan opens) until 9pm (Masala Kitchen, Vrindavan and Kekou's deals end).
+            useChallengeData();
+
+            assertThat(service.findPeakTime()).contains(window("18:00", "21:00"));
+        }
+
+        @Test
+        void singleDealPeaksForItsWholeWindow() {
+            useFeed(restaurant("9:00am", "5:00pm", deal(null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("09:00", "17:00"));
+        }
+
+        @Test
+        void peakIsWhereDealsOverlap() {
+            useFeed(restaurant("9:00am", "10:00pm", deal("a", "9:00am", "5:00pm"), deal("b", "12:00pm", "8:00pm")));
+
+            assertThat(service.findPeakTime()).contains(window("12:00", "17:00"));
+        }
+
+        @Test
+        void tieReturnsTheWindowStartingEarliestInTheDay() {
+            useFeed(
+                    restaurant("r1", "2:00pm", "4:00pm", deal("d1", null, null)),
+                    restaurant("r2", "9:00am", "11:00am", deal("d2", null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("09:00", "11:00"));
+        }
+
+        @Test
+        void backToBackWindowsWithTheSameCountAreMerged() {
+            // One deal ends at 12pm exactly when the next starts, so one deal is active all the way from 9am to 3pm.
+            useFeed(restaurant("9:00am", "3:00pm", deal("a", "9:00am", "12:00pm"), deal("b", "12:00pm", "3:00pm")));
+
+            assertThat(service.findPeakTime()).contains(window("09:00", "15:00"));
+        }
+
+        @Test
+        void peakCanCrossMidnight() {
+            // The all-day restaurant adds a boundary at midnight; the peak still runs through it as one window.
+            useFeed(
+                    restaurant("late", "6:00pm", "2:00am", deal("a", "10:00pm", "1:00am"), deal("b", "11:00pm", "2:00am")),
+                    restaurant("all-day", null, (String) null, deal("c", null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("23:00", "01:00"));
+        }
+
+        @Test
+        void dealHoursAreCutToTheRestaurantsHours() {
+            // Like Vrindavan: the 3pm–9pm deal only counts from 6pm, when its restaurant opens.
+            useFeed(
+                    restaurant("r1", "6:00pm", "9:00pm", deal("d1", "3:00pm", "9:00pm")),
+                    restaurant("r2", "4:00pm", "7:00pm", deal("d2", null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("18:00", "19:00"));
+        }
+
+        @Test
+        void soldOutDealsAreNotCounted() {
+            useFeed(
+                    restaurant("r1", "9:00am", "11:00am", dealWithQtyLeft("sold-1", "0"), dealWithQtyLeft("sold-2", "0")),
+                    restaurant("r2", "2:00pm", "4:00pm", dealWithQtyLeft("available", "1")));
+
+            assertThat(service.findPeakTime()).contains(window("14:00", "16:00"));
+        }
+
+        /**
+         * Deals in a restaurant that is open all day, so only the deals' own hours matter.
+         * Deals are written as "open-close", separated by ';'.
+         */
+        @ParameterizedTest(name = "deals [{0}] peak {1}–{2}")
+        @CsvSource({
+                "'9:00am-9:00pm; 2:00pm-3:00pm',                     14:00, 15:00", // one deal inside another
+                "'9:00am-5:01pm; 5:00pm-9:00pm',                     17:00, 17:01", // a one-minute peak
+                "'10:00am-11:00am; 10:00am-3:00pm; 2:00pm-3:00pm',   10:00, 11:00", // drops, then back to the same peak
+                "'9:00am-11:00am; 11:00pm-1:00am',                   09:00, 11:00", // tie with a window crossing midnight
+                "'6:00pm-12:00am',                                   18:00, 00:00", // ends exactly at midnight
+                "'12:00am-2:00am',                                   00:00, 02:00", // starts exactly at midnight
+                "'12:00am-12:00pm; 12:00pm-12:00am',                 00:00, 00:00"  // back to back all day = all-day peak
+        })
+        void peakForDealHours(String deals, String start, String end) {
+            useFeed(restaurant(null, null, deals(deals)));
+
+            assertThat(service.findPeakTime()).contains(window(start, end));
+        }
+
+        @ParameterizedTest(name = "restaurant open=''{0}'' close=''{1}''")
+        @CsvSource(value = {"NULL, NULL", "3:00pm, 3:00pm"}, nullValues = "NULL")
+        void restaurantOpenAllDayIsAnAllDayPeak(String open, String close) {
+            useFeed(restaurant(open, close, deal(null, null)));
+
+            assertThat(service.findPeakTime()).contains(TimeWindow.ALL_DAY);
+        }
+
+        @Test
+        void noDealsMeansNoPeak() {
+            useFeed();
+
+            assertThat(service.findPeakTime()).isEmpty();
+        }
+
+        @Test
+        void dealsThatAreNeverActiveMeanNoPeak() {
+            useFeed(restaurant("9:00am", "5:00pm", deal("6:00pm", "8:00pm")));
+
+            assertThat(service.findPeakTime()).isEmpty();
+        }
+
+        @Test
+        void allDealsSoldOutMeansNoPeak() {
+            useFeed(restaurant("9:00am", "5:00pm", dealWithQtyLeft("a", "0"), dealWithQtyLeft("b", "0")));
+
+            assertThat(service.findPeakTime()).isEmpty();
+        }
+
+        @ParameterizedTest(name = "qtyLeft=''{0}''")
+        @CsvSource(value = {"NULL", "abc"}, nullValues = "NULL")
+        void dealWithUnknownQuantityIsCounted(String qtyLeft) {
+            useFeed(restaurant("9:00am", "11:00am", dealWithQtyLeft("d", qtyLeft)));
+
+            assertThat(service.findPeakTime()).contains(window("09:00", "11:00"));
+        }
+
+        @Test
+        void dealWithPartialHoursIsCountedForTheRestaurantsHours() {
+            useFeed(restaurant("9:00am", "5:00pm", deal("6:00pm", null)));
+
+            assertThat(service.findPeakTime()).contains(window("09:00", "17:00"));
+        }
+
+        @Test
+        void dealWithMalformedHoursIsNotCounted() {
+            // If the 9am–5pm deal were counted, it would tie with 6pm–8pm and win as the earlier window.
+            useFeed(
+                    restaurant("r1", "9:00am", "5:00pm", deal("bad", "not-a-time", "5:00pm")),
+                    restaurant("r2", "6:00pm", "8:00pm", deal("good", null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("18:00", "20:00"));
+        }
+
+        @Test
+        void dealsSharingAnIdAreCountedSeparately() {
+            // Like Kekou and Gyoza Gyoza: if the shared ID were counted once, the peak would be 9am–5pm.
+            useFeed(
+                    restaurant("r1", "9:00am", "5:00pm", deal("same-id", null, null)),
+                    restaurant("r2", "2:00pm", "4:00pm", deal("same-id", null, null)));
+
+            assertThat(service.findPeakTime()).contains(window("14:00", "16:00"));
+        }
+
+        @Test
+        void peakAgreesWithActiveDeals() {
+            // The end is exclusive: the peak count holds at the start and the minute before the end, but not at the end.
+            useChallengeData();
+
+            assertThat(activeAt(18, 0)).hasSize(9);
+            assertThat(activeAt(20, 59)).hasSize(9);
+            assertThat(activeAt(21, 0)).hasSizeLessThan(9);
+            assertThat(activeAt(17, 59)).hasSizeLessThan(9);
+        }
+
+        private static TimeWindow window(String start, String end) {
+            return new TimeWindow(LocalTime.parse(start), LocalTime.parse(end));
+        }
+
+        /** "9:00am-5:00pm; 2:00pm-3:00pm" → two deals with those hours. */
+        private static Deal[] deals(String hours) {
+            String[] parts = hours.split(";");
+            Deal[] deals = new Deal[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                String[] openClose = parts[i].trim().split("-");
+                deals[i] = deal("d" + i, openClose[0], openClose[1]);
+            }
+            return deals;
         }
     }
 
