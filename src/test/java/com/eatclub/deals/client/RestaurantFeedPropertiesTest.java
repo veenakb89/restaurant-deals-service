@@ -17,13 +17,32 @@ class RestaurantFeedPropertiesTest {
             .withUserConfiguration(Config.class);
 
     @Test
-    void timeoutsDefaultTo5And10Seconds() {
+    void timeoutsDefaultTo2And5Seconds() {
         runner.withPropertyValues("restaurant-feed.url=https://example.com/feed.json")
                 .run(context -> {
                     RestaurantFeedProperties properties = context.getBean(RestaurantFeedProperties.class);
-                    assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(5));
-                    assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(10));
+                    assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
+                    assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(5));
                 });
+    }
+
+    @Test
+    void retryAndCircuitBreakerHaveDefaults() {
+        runner.withPropertyValues("restaurant-feed.url=https://example.com/feed.json")
+                .run(context -> {
+                    RestaurantFeedProperties properties = context.getBean(RestaurantFeedProperties.class);
+                    assertThat(properties.retry()).isEqualTo(
+                            new RestaurantFeedProperties.RetrySettings(3, Duration.ofMillis(200), 2.0));
+                    assertThat(properties.circuitBreaker()).isEqualTo(
+                            new RestaurantFeedProperties.CircuitBreakerSettings(50, 10, 5, Duration.ofSeconds(30), 2));
+                });
+    }
+
+    @Test
+    void appFailsToStartWithAnOutOfRangeResilienceSetting() {
+        runner.withPropertyValues("restaurant-feed.url=https://example.com/feed.json",
+                        "restaurant-feed.retry.max-attempts=0")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

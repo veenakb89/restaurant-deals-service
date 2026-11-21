@@ -325,7 +325,16 @@ A: Yes. They're handled as separate deals. Example: Kekou and Gyoza Gyoza each h
 A: No. The feed is fetched from the source URL on every request.
 
 **Q: The data source is unreachable, too slow, returns an error status, or returns invalid JSON. What happens?**
-A: The request returns `502 Bad Gateway` with code `feed_unavailable` and the message "Deal data source is currently unavailable." No partial or old data is returned. The connection timeout is 5 seconds and the read timeout is 10 seconds, both set in `application.properties`.
+A: The request returns `502 Bad Gateway` with code `feed_unavailable` and the message "Deal data source is currently unavailable." No partial or old data is returned. Before giving up, temporary problems are retried (see the next question). The connection timeout is 2 seconds and the read timeout is 5 seconds.
+
+**Q: Which failures are retried?**
+A: Temporary ones: a connection error, a timeout, or an upstream `5xx`. The call is tried up to 3 times, waiting 200ms and then 400ms in between. Upstream `4xx` and invalid JSON aren't retried, because trying again won't fix them. If all attempts fail, the response is `502`, as above. In the worst case (every attempt times out), a request takes about 16 seconds.
+
+**Q: What happens during a longer outage?**
+A: A circuit breaker stops the API calling upstream. When at least half of the last 10 calls failed (each retry attempt counts, and at least 5 calls are needed), the circuit **opens** for 30 seconds. Requests then fail immediately with the same `502 feed_unavailable`, instead of waiting for timeouts and retries. After 30 seconds, 2 trial calls are let through. If they succeed, the circuit closes and normal service resumes; if not, it opens again. Each retry and each change of state is logged as a warning.
+
+**Q: Can the timeouts, retry and circuit breaker be changed?**
+A: Yes, in `application.properties`: `restaurant-feed.connect-timeout`, `restaurant-feed.read-timeout`, `restaurant-feed.retry.*` and `restaurant-feed.circuit-breaker.*`. Out-of-range values stop the app from starting.
 
 **Q: The data source returns an empty response body. What happens?**
 A: It's treated as a feed with no restaurants, so the response is `200` with an empty `deals` list.
@@ -337,7 +346,8 @@ src/main/java/com/eatclub/deals
 ├── controller/     REST endpoints: routes and API docs (DealApi), implementation (DealController)
 ├── dto/            API request/response bodies; currently responses only (ActiveDealsResponse, ActiveDeal, PeakTimeResponse)
 ├── service/        Business logic (DealService)
-├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient)
+├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient), with retry and a circuit breaker
+│                   (FeedResilience), and its settings (RestaurantFeedProperties)
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
 ├── error/          HTTP error responses: the global error handler (GlobalExceptionHandler), error codes and types
 │                   (ErrorCode, ErrorType) and the error body (ApiErrorResponse, ErrorDetail)
