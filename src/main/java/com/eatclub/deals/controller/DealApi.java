@@ -1,5 +1,6 @@
 package com.eatclub.deals.controller;
 
+import com.eatclub.deals.config.OpenApiConfig;
 import com.eatclub.deals.dto.ActiveDealsResponse;
 import com.eatclub.deals.dto.PeakTimeResponse;
 import com.eatclub.deals.error.ApiErrorResponse;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,14 +19,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * The deals endpoints: their routes and their API documentation. {@link DealController} implements them, so the
- * controller holds only the code.
+ * controller holds only the code. Both endpoints need a JWT bearer token with the {@code deals:read} scope.
  */
 @RequestMapping("/api")
 @Tag(name = "Deals", description = "Restaurant deals")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public interface DealApi {
 
     String TIME_OF_DAY = "timeOfDay";
     String JSON = MediaType.APPLICATION_JSON_VALUE;
+    String UNAUTHORIZED_DESCRIPTION = "The access token is missing, invalid or expired (`unauthorized`)";
+    String FORBIDDEN_DESCRIPTION = "The access token doesn't have the `deals:read` scope (`forbidden`)";
 
     /** Task 1: e.g. {@code GET /api/deals?timeOfDay=3:00pm}. */
     @GetMapping(value = "/deals", produces = JSON)
@@ -39,6 +44,12 @@ public interface DealApi {
                             @ExampleObject(name = "invalid_time_of_day", value = ApiErrorExamples.INVALID_TIME_OF_DAY),
                             @ExampleObject(name = "missing_parameter", value = ApiErrorExamples.MISSING_PARAMETER)
                     }))
+    @ApiResponse(responseCode = "401", description = UNAUTHORIZED_DESCRIPTION,
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
+                    examples = @ExampleObject(name = "unauthorized", value = ApiErrorExamples.UNAUTHORIZED)))
+    @ApiResponse(responseCode = "403", description = FORBIDDEN_DESCRIPTION,
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
+                    examples = @ExampleObject(name = "forbidden", value = ApiErrorExamples.FORBIDDEN)))
     @ApiResponse(responseCode = "500", description = "An unexpected error occurred (`internal_error`)",
             content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
                     examples = @ExampleObject(name = "internal_error", value = ApiErrorExamples.INTERNAL_ERROR)))
@@ -57,6 +68,12 @@ public interface DealApi {
                     + "`GET /api/deals`. If several separate windows tie, the one starting earliest in the day is "
                     + "returned. Equal start and end mean all day; both are null when no deal is ever active.")
     @ApiResponse(responseCode = "200", description = "The peak window (both fields null when no deal is ever active)")
+    @ApiResponse(responseCode = "401", description = UNAUTHORIZED_DESCRIPTION,
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
+                    examples = @ExampleObject(name = "unauthorized", value = ApiErrorExamples.UNAUTHORIZED)))
+    @ApiResponse(responseCode = "403", description = FORBIDDEN_DESCRIPTION,
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
+                    examples = @ExampleObject(name = "forbidden", value = ApiErrorExamples.FORBIDDEN)))
     @ApiResponse(responseCode = "500", description = "An unexpected error occurred (`internal_error`)",
             content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorResponse.class),
                     examples = @ExampleObject(name = "internal_error", value = ApiErrorExamples.INTERNAL_ERROR)))

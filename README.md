@@ -5,6 +5,7 @@ A Spring Boot API that reads restaurant deal data from
 
 - **Task 1:** `GET /api/deals?timeOfDay=…` returns the deals active at a given time.
 - **Task 2:** `GET /api/deals/peak-time` returns the time window during which the most deals are active.
+- **Auth (demo):** `POST /oauth2/token` issues a signed JWT access token.
 
 ## Tech stack
 
@@ -40,12 +41,18 @@ The tests use a snapshot of the restaurant feed (`src/test/resources/challengeda
 
 ## API
 
+Both deals endpoints need an access token (see [Security](#security)). Get one first:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8080/oauth2/token" | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
+```
+
 ### `GET /api/deals?timeOfDay={time}`
 
 `timeOfDay` can be a 12-hour time with `am`/`pm` and no space (`3:00pm`, `10:30AM`) or a 24-hour time (`10:30`, `15:00`). Hour and minutes are always separated by `:`. Leading and trailing spaces are ignored.
 
 ```bash
-curl "http://localhost:8080/api/deals?timeOfDay=6:00pm"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/deals?timeOfDay=6:00pm"
 ```
 
 ```json
@@ -73,7 +80,7 @@ curl "http://localhost:8080/api/deals?timeOfDay=6:00pm"
 Takes no parameters. Returns the window during which the most deals are active. The start is inclusive and the end exclusive, and times use the same format as the feed.
 
 ```bash
-curl "http://localhost:8080/api/deals/peak-time"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/deals/peak-time"
 ```
 
 ```json
@@ -82,6 +89,25 @@ curl "http://localhost:8080/api/deals/peak-time"
   "peakTimeEnd": "9:00pm"
 }
 ```
+
+### `POST /oauth2/token`
+
+Takes no parameters. Returns a JWT signed with HS256 (HMAC-SHA256 with a shared secret) for the configured demo client. The claims (`iss`, `sub`, `aud`, `scope`, and the lifetime `exp` − `iat`) come from the `security.jwt.*` settings in `application.properties`.
+
+```bash
+curl -X POST "http://localhost:8080/oauth2/token"
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "deals:read"
+}
+```
+
+This is a demo issuer; see [Security](#security).
 
 ### Errors
 
@@ -112,9 +138,33 @@ Every error returns the same JSON body (`application/json`), and the HTTP status
 | Any other malformed request | `4xx` | `invalid_request_error` | `bad_request` |
 | Unknown URL | `404 Not Found` | `invalid_request_error` | `not_found` |
 | Wrong HTTP method | `405 Method Not Allowed` | `invalid_request_error` | `method_not_allowed` |
+| Access token missing, invalid or expired | `401 Unauthorized` | `invalid_request_error` | `unauthorized` |
+| Access token without the `deals:read` scope | `403 Forbidden` | `invalid_request_error` | `forbidden` |
 | Upstream data source unreachable, failing or returning invalid data | `502 Bad Gateway` | `api_error` | `feed_unavailable` |
 | Unexpected server error (no internal details are exposed) | `500 Internal Server Error` | `api_error` | `internal_error` |
 
+## Security
+
+The deals endpoints (`/api/**`) need a JWT access token, sent as `Authorization: Bearer <token>`. The token endpoint and the API docs are public.
+
+1. **Get a token:** `POST /oauth2/token` returns a JWT signed with HS256 (HMAC-SHA256 with a shared secret). It's valid for 1 hour.
+2. **Call the API** with the token in the `Authorization` header.
+3. **The API checks the token** with Spring Security's OAuth2 resource-server support. It accepts the token only if:
+   - it's signed with our secret, using HS256 and no other algorithm;
+   - it hasn't expired (60 seconds of clock difference allowed);
+   - its issuer is `restaurant-deals` and its audience includes `deals-api`;
+   - its scope includes `deals:read`.
+
+   Otherwise the response is `401 unauthorized`, or `403 forbidden` if only the scope is missing, in the usual error format. The standard `WWW-Authenticate: Bearer ...` header says why a token was rejected.
+
+**In Swagger UI:** call `POST /oauth2/token`, copy `access_token`, click **Authorize** and paste it. The deals endpoints then send it automatically.
+
+**Configuration:** the token's issuer, audience, subject, scope and lifetime are the `security.jwt.*` settings in `application.properties`. `security.jwt.scope` (default `deals:read`) is read in both places that need it: the issuer puts it in tokens, and the deals endpoints require it. The Swagger descriptions mention the default `deals:read` as plain text, so update them if you change it. The default signing secret is for local runs only. Set the `JWT_SECRET` environment variable (32+ characters) anywhere else; ideally it comes from a secrets manager.
+
+**Demo shortcuts, and what production would do instead:**
+- **No client check.** The token endpoint doesn't check who is asking, so anyone who can reach it gets a token. In production, an identity provider (IdP) issues tokens only after the client authenticates (e.g. with OAuth2 client credentials), and this app's `security/issuer` package is removed.
+- **A shared secret.** With HS256, whoever can verify a token can also create one. That's fine here, because this app both issues and checks the tokens. IdPs sign with a private key (RS256) and publish the public keys (JWKS), so APIs can verify tokens without being able to create them. Switching to an IdP is a configuration change: `spring.security.oauth2.resourceserver.jwt.issuer-uri`.
+- **No early revocation.** A token stays valid until it expires, which is why its lifetime is short.
 
 ## Business rules: questions and answers
 
@@ -181,6 +231,12 @@ A: Anything else returns `400` with code `invalid_time_of_day` and `param` `time
 - single-digit minutes (`3:0pm`);
 - seconds (`3:00:00`);
 - out-of-range times (`25:00`, `24:00`, `13:00pm`, `0:00am`, `10:60`).
+
+**Q: Which endpoints need an access token?**
+A: Both deals endpoints (everything under `/api/`). `POST /oauth2/token`, Swagger UI and `/v3/api-docs` are public. An unknown `/api/...` URL also returns `401` without a token, so the API doesn't reveal which URLs exist; with a token, it returns `404`.
+
+**Q: What makes a token invalid?**
+A: A missing token, or one that isn't a JWT, has been changed, is signed with a different secret or algorithm, has expired, or has the wrong issuer or audience. All of these return `401` with code `unauthorized`. A valid token without the `deals:read` scope returns `403` with code `forbidden`.
 
 **Q: `timeOfDay` isn't sent at all. What happens?**
 A: It returns `400` with code `missing_parameter` and `param` `timeOfDay`.
@@ -286,7 +342,10 @@ src/main/java/com/eatclub/deals
 ├── error/          HTTP error responses: the global error handler (GlobalExceptionHandler), error codes and types
 │                   (ErrorCode, ErrorType) and the error body (ApiErrorResponse, ErrorDetail)
 ├── exception/      Domain exceptions (InvalidTimeOfDayException, FeedUnavailableException)
-├── config/         Spring configuration (OpenAPI/Swagger)
+├── config/         Spring configuration (OpenAPI/Swagger, the app's Clock)
+├── security/       Token checks for /api/** (SecurityConfig), JSON 401/403 errors (JsonSecurityErrorHandler),
+│                   JWT settings, signing and validation (JwtProperties, JwtConfig)
+│   └── issuer/     Demo token endpoint (TokenController, TokenService, TokenResponse)
 └── time/           Time parsing and formatting (TimeOfDayParser, TimeOfDayFormatter) and opening-hours windows (TimeWindow)
 ```
 

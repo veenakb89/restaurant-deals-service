@@ -23,6 +23,24 @@ final class ApiErrorExamples {
               }
             }""";
 
+    static final String UNAUTHORIZED = """
+            {
+              "error": {
+                "type": "invalid_request_error",
+                "code": "unauthorized",
+                "message": "A valid access token is required: send 'Authorization: Bearer <token>'."
+              }
+            }""";
+
+    static final String FORBIDDEN = """
+            {
+              "error": {
+                "type": "invalid_request_error",
+                "code": "forbidden",
+                "message": "The access token does not allow this request."
+              }
+            }""";
+
     static final String INTERNAL_ERROR = """
             {
               "error": {
