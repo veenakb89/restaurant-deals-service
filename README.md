@@ -4,6 +4,7 @@ A Spring Boot REST API that reads restaurant deal data from <https://eccdn.com.a
 
 - **Task 1:** which deals are active at a given time of day?
 - **Task 2:** when is the peak, the time window with the most active deals?
+- **Task 3:** a database design for storing the feed: PostgreSQL, with an ER diagram, notes and the schema. See [docs/database-design.md](docs/database-design.md).
 
 **Features:** versioned REST API (`/api/v1`) · JWT bearer-token security · one consistent error format · 60s feed cache, retry and circuit breaker · health checks and metrics · request IDs in every log line · Swagger UI · 270+ tests with 100% branch coverage.
 
@@ -150,6 +151,7 @@ Java 21 · Spring Boot 4 (Web MVC, Security OAuth2 resource server, Validation, 
 
 | Document | Contents |
 |---|---|
+| [docs/database-design.md](docs/database-design.md) | **Task 3:** the database choice (PostgreSQL) and why, the ER diagram, notes, the schema (DDL) and example queries |
 | [docs/business-rules.md](docs/business-rules.md) | How active deals and the peak are decided, as questions and answers (with the items to confirm with the product owner) |
 | [docs/errors.md](docs/errors.md) | The error format and every error code |
 | [docs/security.md](docs/security.md) | The token flow, what makes a token valid, and the demo shortcuts vs production |
