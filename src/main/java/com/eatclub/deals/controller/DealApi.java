@@ -21,17 +21,22 @@ import org.springframework.web.bind.annotation.RequestParam;
  * The deals endpoints: their routes and their API documentation. {@link DealController} implements them, so the
  * controller holds only the code. Both endpoints need a JWT bearer token with the {@code deals:read} scope.
  */
-@RequestMapping("/api")
+@RequestMapping(DealApi.BASE_PATH)
 @Tag(name = "Deals", description = "Restaurant deals")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public interface DealApi {
 
+    /**
+     * Version 1 of the API. The version is in the path, so a future breaking change can be served as {@code /api/v2}
+     * alongside v1 while clients move over.
+     */
+    String BASE_PATH = "/api/v1";
     String TIME_OF_DAY = "timeOfDay";
     String JSON = MediaType.APPLICATION_JSON_VALUE;
     String UNAUTHORIZED_DESCRIPTION = "The access token is missing, invalid or expired (`unauthorized`)";
     String FORBIDDEN_DESCRIPTION = "The access token doesn't have the `deals:read` scope (`forbidden`)";
 
-    /** Task 1: e.g. {@code GET /api/deals?timeOfDay=3:00pm}. */
+    /** Task 1: e.g. {@code GET /api/v1/deals?timeOfDay=3:00pm}. */
     @GetMapping(value = "/deals", produces = JSON)
     @Operation(summary = "List deals active at a time of day",
             description = "Returns every deal that is available at the given time. A deal is only active "
@@ -61,11 +66,11 @@ public interface DealApi {
                     + "Hour and minutes are separated by ':'; leading and trailing spaces are ignored.", example = "3:00pm")
             @RequestParam(TIME_OF_DAY) String timeOfDay);
 
-    /** Task 2: {@code GET /api/deals/peak-time}. */
+    /** Task 2: {@code GET /api/v1/deals/peak-time}. */
     @GetMapping(value = "/deals/peak-time", produces = JSON)
     @Operation(summary = "Find the peak time window",
             description = "Returns the time window during which the most deals are active, using the same rules as "
-                    + "`GET /api/deals`. If several separate windows tie, the one starting earliest in the day is "
+                    + "`GET /api/v1/deals`. If several separate windows tie, the one starting earliest in the day is "
                     + "returned. Equal start and end mean all day; both are null when no deal is ever active.")
     @ApiResponse(responseCode = "200", description = "The peak window (both fields null when no deal is ever active)")
     @ApiResponse(responseCode = "401", description = UNAUTHORIZED_DESCRIPTION,

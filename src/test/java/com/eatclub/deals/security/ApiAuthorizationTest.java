@@ -48,8 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(OutputCaptureExtension.class)
 class ApiAuthorizationTest {
 
-    private static final String DEALS = "/api/deals?timeOfDay=6:00pm";
-    private static final String PEAK_TIME = "/api/deals/peak-time";
+    private static final String DEALS = "/api/v1/deals?timeOfDay=6:00pm";
+    private static final String PEAK_TIME = "/api/v1/deals/peak-time";
 
     @Autowired
     private MockMvc mockMvc;
@@ -112,7 +112,7 @@ class ApiAuthorizationTest {
         mockMvc.perform(get(PEAK_TIME).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isUnauthorized());
 
-        assertThat(output).contains("Unauthorized request to GET /api/deals/peak-time");
+        assertThat(output).contains("Unauthorized request to GET /api/v1/deals/peak-time");
         assertThat(output).doesNotContain(token);
     }
 

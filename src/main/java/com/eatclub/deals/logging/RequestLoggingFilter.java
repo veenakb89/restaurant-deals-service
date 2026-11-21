@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  *   <li>The ID is the incoming {@code X-Request-Id} header if it's safe (letters, digits, {@code -} or {@code _},
  *       up to 64 characters), otherwise a new UUID. It's returned in the {@code X-Request-Id} response header and
  *       put in the logging context as {@code requestId}, so every log line written for this request shows it.</li>
- *   <li>The summary is {@code GET /api/deals?timeOfDay=6:00pm -> 200 in 12 ms}. Headers are never logged, so the
+ *   <li>The summary is {@code GET /api/v1/deals?timeOfDay=6:00pm -> 200 in 12 ms}. Headers are never logged, so the
  *       access token stays out of the logs.</li>
  * </ul>
  * It runs before everything else, including security, so rejected requests get an ID and a summary too.

@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-/** Response body of {@code GET /api/deals}: the deals active at the requested time. */
+/** Response body of {@code GET /api/v1/deals}: the deals active at the requested time. */
 @Schema(description = "The deals active at the requested time, in source order")
 public record ActiveDealsResponse(
 

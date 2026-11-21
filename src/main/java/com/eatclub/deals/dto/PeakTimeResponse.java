@@ -4,7 +4,7 @@ import com.eatclub.deals.time.TimeOfDayFormatter;
 import com.eatclub.deals.time.TimeWindow;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** Response body of {@code GET /api/deals/peak-time}: the window during which the most deals are active. */
+/** Response body of {@code GET /api/v1/deals/peak-time}: the window during which the most deals are active. */
 @Schema(description = "The time window during which the most deals are active. The start is inclusive and the end "
         + "exclusive. Equal start and end mean all day. Both are null when no deal is ever active.")
 public record PeakTimeResponse(

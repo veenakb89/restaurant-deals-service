@@ -29,7 +29,7 @@ class RequestLoggingFilterTest {
     void givesEachRequestAnIdForTheLogsAndTheResponse() throws Exception {
         AtomicReference<String> idSeenWhileHandling = new AtomicReference<>();
 
-        filter.doFilter(get("/api/deals/peak-time"), response,
+        filter.doFilter(get("/api/v1/deals/peak-time"), response,
                 (req, res) -> idSeenWhileHandling.set(MDC.get(RequestLoggingFilter.REQUEST_ID_KEY)));
 
         String id = response.getHeader(RequestLoggingFilter.REQUEST_ID_HEADER);
@@ -40,7 +40,7 @@ class RequestLoggingFilterTest {
 
     @Test
     void reusesASafeIdSentByTheCaller() throws Exception {
-        MockHttpServletRequest request = get("/api/deals/peak-time");
+        MockHttpServletRequest request = get("/api/v1/deals/peak-time");
         request.addHeader(RequestLoggingFilter.REQUEST_ID_HEADER, "order-123_abc");
 
         filter.doFilter(request, response, new MockFilterChain());
@@ -52,7 +52,7 @@ class RequestLoggingFilterTest {
     @ValueSource(strings = {"", "has spaces", "<script>", "line\nbreak",
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}) // 65 characters
     void replacesAnUnsafeIdSentByTheCaller(String unsafeId) throws Exception {
-        MockHttpServletRequest request = get("/api/deals/peak-time");
+        MockHttpServletRequest request = get("/api/v1/deals/peak-time");
         request.addHeader(RequestLoggingFilter.REQUEST_ID_HEADER, unsafeId);
 
         filter.doFilter(request, response, new MockFilterChain());
@@ -62,24 +62,24 @@ class RequestLoggingFilterTest {
 
     @Test
     void logsOneSummaryLinePerRequestWithoutHeaders(CapturedOutput output) throws Exception {
-        MockHttpServletRequest request = get("/api/deals");
+        MockHttpServletRequest request = get("/api/v1/deals");
         request.setQueryString("timeOfDay=6:00pm");
         request.addHeader("Authorization", "Bearer secret-token-value");
         response.setStatus(200);
 
         filter.doFilter(request, response, new MockFilterChain());
 
-        assertThat(output).contains("GET /api/deals?timeOfDay=6:00pm -> 200 in ");
+        assertThat(output).contains("GET /api/v1/deals?timeOfDay=6:00pm -> 200 in ");
         assertThat(output).doesNotContain("secret-token-value");
     }
 
     @Test
     void stillLogsAndClearsTheIdWhenHandlingFails(CapturedOutput output) {
-        assertThatThrownBy(() -> filter.doFilter(get("/api/deals/peak-time"), response,
+        assertThatThrownBy(() -> filter.doFilter(get("/api/v1/deals/peak-time"), response,
                 (req, res) -> { throw new ServletException("boom"); }))
                 .isInstanceOf(ServletException.class);
 
-        assertThat(output).contains("GET /api/deals/peak-time -> ");
+        assertThat(output).contains("GET /api/v1/deals/peak-time -> ");
         assertThat(MDC.get(RequestLoggingFilter.REQUEST_ID_KEY)).isNull();
     }
 

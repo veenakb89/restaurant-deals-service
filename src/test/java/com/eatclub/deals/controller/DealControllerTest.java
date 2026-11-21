@@ -52,7 +52,7 @@ class DealControllerTest {
 
     @Test
     void returnsDealsInContractShape() throws Exception {
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "3:00pm"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deals", hasSize(5)))
                 .andExpect(jsonPath("$.deals[0].restaurantObjectId").value("DEA567C5-F64C-3C03-FF00-E3B24909BE00"))
@@ -76,7 +76,7 @@ class DealControllerTest {
     void responseMatchesTheContractExactly() throws Exception {
         String expected = new ClassPathResource("expected/deals-at-3pm.json").getContentAsString(StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "3:00pm"))
                 .andExpect(status().isOk())
                 .andExpect(content().json(expected, JsonCompareMode.STRICT));
     }
@@ -112,7 +112,7 @@ class DealControllerTest {
             "'  15:00  ', 5"
     })
     void acceptsEveryValidTimeOfDayFormat(String timeOfDay, int expectedDeals) throws Exception {
-        mockMvc.perform(get("/api/deals").param("timeOfDay", timeOfDay))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", timeOfDay))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.deals", hasSize(expectedDeals)));
@@ -151,7 +151,7 @@ class DealControllerTest {
             "-1:00"
     })
     void rejectsEveryInvalidTimeOfDay(String timeOfDay) throws Exception {
-        mockMvc.perform(get("/api/deals").param("timeOfDay", timeOfDay))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", timeOfDay))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
@@ -161,14 +161,14 @@ class DealControllerTest {
 
     @Test
     void returnsEmptyListWhenNothingIsActive() throws Exception {
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "4:00am"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "4:00am"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deals", hasSize(0)));
     }
 
     @Test
     void invalidTimeReturnsError() throws Exception {
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "25:00"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "25:00"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
@@ -181,7 +181,7 @@ class DealControllerTest {
 
     @Test
     void missingTimeReturnsError() throws Exception {
-        mockMvc.perform(get("/api/deals"))
+        mockMvc.perform(get("/api/v1/deals"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
@@ -201,9 +201,17 @@ class DealControllerTest {
                 .andExpect(jsonPath("$.error.param").doesNotExist());
     }
 
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"/api/deals", "/api/deals/peak-time"})
+    void unversionedUrlsAreNotServed(String url) throws Exception {
+        mockMvc.perform(get(url).param("timeOfDay", "3:00pm"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("not_found"));
+    }
+
     @Test
     void wrongMethodReturnsMethodNotAllowed() throws Exception {
-        mockMvc.perform(post("/api/deals"))
+        mockMvc.perform(post("/api/v1/deals"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(header().string("Allow", containsString("GET")))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -215,7 +223,7 @@ class DealControllerTest {
     void returnsBadGatewayWhenSourceIsDown() throws Exception {
         when(client.fetch()).thenThrow(new FeedUnavailableException(new ResourceAccessException("timeout")));
 
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "3:00pm"))
                 .andExpect(status().isBadGateway())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.type").value("api_error"))
@@ -226,7 +234,7 @@ class DealControllerTest {
 
     @Test
     void returnsPeakTimeInContractShape() throws Exception {
-        mockMvc.perform(get("/api/deals/peak-time"))
+        mockMvc.perform(get("/api/v1/deals/peak-time"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.peakTimeStart").value("6:00pm"))
@@ -238,7 +246,7 @@ class DealControllerTest {
     void peakTimeIsNullWhenNoDealIsActive() throws Exception {
         when(client.fetch()).thenReturn(TestFeeds.fromJson("{\"restaurants\": []}"));
 
-        mockMvc.perform(get("/api/deals/peak-time"))
+        mockMvc.perform(get("/api/v1/deals/peak-time"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.peakTimeStart").value(nullValue()))
                 .andExpect(jsonPath("$.peakTimeEnd").value(nullValue()))
@@ -250,7 +258,7 @@ class DealControllerTest {
         when(client.fetch()).thenReturn(TestFeeds.fromJson("""
                 {"restaurants": [{"objectId": "r", "deals": [{"objectId": "d"}]}]}"""));
 
-        mockMvc.perform(get("/api/deals/peak-time"))
+        mockMvc.perform(get("/api/v1/deals/peak-time"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.peakTimeStart").value("12:00am"))
                 .andExpect(jsonPath("$.peakTimeEnd").value("12:00am"));
@@ -258,7 +266,7 @@ class DealControllerTest {
 
     @Test
     void peakTimeIgnoresUnexpectedParameters() throws Exception {
-        mockMvc.perform(get("/api/deals/peak-time").param("timeOfDay", "3:00pm"))
+        mockMvc.perform(get("/api/v1/deals/peak-time").param("timeOfDay", "3:00pm"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.peakTimeStart").value("6:00pm"))
                 .andExpect(jsonPath("$.peakTimeEnd").value("9:00pm"));
@@ -266,7 +274,7 @@ class DealControllerTest {
 
     @Test
     void peakTimeRejectsWrongMethod() throws Exception {
-        mockMvc.perform(post("/api/deals/peak-time"))
+        mockMvc.perform(post("/api/v1/deals/peak-time"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.error.code").value("method_not_allowed"));
     }
@@ -275,7 +283,7 @@ class DealControllerTest {
     void peakTimeUnexpectedErrorReturnsGenericServerError() throws Exception {
         when(client.fetch()).thenThrow(new IllegalStateException("secret internal detail"));
 
-        mockMvc.perform(get("/api/deals/peak-time"))
+        mockMvc.perform(get("/api/v1/deals/peak-time"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.code").value("internal_error"))
                 .andExpect(content().string(not(containsString("secret internal detail"))));
@@ -285,7 +293,7 @@ class DealControllerTest {
     void peakTimeReturnsBadGatewayWhenSourceIsDown() throws Exception {
         when(client.fetch()).thenThrow(new FeedUnavailableException(new ResourceAccessException("timeout")));
 
-        mockMvc.perform(get("/api/deals/peak-time"))
+        mockMvc.perform(get("/api/v1/deals/peak-time"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.error.type").value("api_error"))
                 .andExpect(jsonPath("$.error.code").value("feed_unavailable"));
@@ -295,7 +303,7 @@ class DealControllerTest {
     void unexpectedErrorReturnsGenericServerError() throws Exception {
         when(client.fetch()).thenThrow(new IllegalStateException("secret internal detail"));
 
-        mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
+        mockMvc.perform(get("/api/v1/deals").param("timeOfDay", "3:00pm"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.type").value("api_error"))
