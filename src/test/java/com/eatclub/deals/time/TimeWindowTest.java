@@ -29,8 +29,20 @@ class TimeWindowTest {
     }
 
     @Test
+    void equalStartAndEndCoversTheWholeDay() {
+        TimeWindow window = TimeWindow.parse("3:00pm", "3:00pm");
+
+        assertThat(window.contains(LocalTime.of(14, 59))).isTrue();
+        assertThat(window.contains(LocalTime.of(15, 0))).isTrue();
+        assertThat(window.contains(LocalTime.of(15, 1))).isTrue();
+        assertThat(window.contains(LocalTime.MIDNIGHT)).isTrue();
+        assertThat(window.contains(LocalTime.of(23, 59))).isTrue();
+    }
+
+    @Test
     void allDayContainsEverything() {
         assertThat(TimeWindow.ALL_DAY.contains(LocalTime.MIDNIGHT)).isTrue();
+        assertThat(TimeWindow.ALL_DAY.contains(LocalTime.of(15, 0))).isTrue();
         assertThat(TimeWindow.ALL_DAY.contains(LocalTime.of(23, 59))).isTrue();
     }
 }

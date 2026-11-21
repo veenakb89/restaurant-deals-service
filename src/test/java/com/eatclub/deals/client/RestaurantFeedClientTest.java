@@ -50,6 +50,13 @@ class RestaurantFeedClientTest {
     }
 
     @Test
+    void returnsAnEmptyFeedWhenTheBodyIsEmpty() {
+        respondWith(200, "");
+
+        assertThat(client().fetch().restaurants()).isEmpty();
+    }
+
+    @Test
     void wrapsErrorStatusInFeedUnavailableException() {
         respondWith(500, "{}");
 

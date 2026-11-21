@@ -10,12 +10,8 @@ public class InvalidTimeOfDayException extends RuntimeException {
 
     private final String parameter;
 
-    public InvalidTimeOfDayException(String value) {
-        this(value, null);
-    }
-
     public InvalidTimeOfDayException(String value, String parameter) {
-        super("Invalid time of day: '" + value + "'. Expected a time such as '3:00pm', '3pm' or '15:00'.");
+        super("Invalid time of day: '" + value + "'. Expected a time such as '3:00pm', '10:30AM' or '15:00'.");
         this.parameter = parameter;
     }
 

@@ -46,7 +46,7 @@ public class DealController {
                                       "error": {
                                         "type": "invalid_request_error",
                                         "code": "invalid_time_of_day",
-                                        "message": "Invalid time of day: '25:00'. Expected a time such as '3:00pm', '3pm' or '15:00'.",
+                                        "message": "Invalid time of day: '25:00'. Expected a time such as '3:00pm', '10:30AM' or '15:00'.",
                                         "param": "timeOfDay"
                                       }
                                     }"""),
@@ -81,7 +81,8 @@ public class DealController {
                               }
                             }""")))
     public ActiveDealsResponse getActiveDeals(
-            @Parameter(description = "12-hour (3:00pm, 3pm) or 24-hour (15:00) time", example = "3:00pm")
+            @Parameter(description = "12-hour time with am/pm and no space (3:00pm, 10:30AM), or 24-hour time (15:00). "
+                    + "Hour and minutes are separated by ':'; leading and trailing spaces are ignored.", example = "3:00pm")
             @RequestParam(TIME_OF_DAY) String timeOfDay) {
         return new ActiveDealsResponse(dealService.findActiveDeals(TimeOfDayParser.parse(timeOfDay, TIME_OF_DAY)));
     }

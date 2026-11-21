@@ -19,7 +19,7 @@ public record ErrorDetail(
         ErrorCode code,
 
         @Schema(description = "Human-readable explanation. May change; don't parse it.",
-                example = "Invalid time of day: '25:00'. Expected a time such as '3:00pm', '3pm' or '15:00'.")
+                example = "Invalid time of day: '25:00'. Expected a time such as '3:00pm', '10:30AM' or '15:00'.")
         String message,
 
         @Schema(description = "The request parameter that caused the error. Present only for parameter errors.",
@@ -27,10 +27,7 @@ public record ErrorDetail(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String param) {
 
-    public static ErrorDetail of(ErrorCode code, String message) {
-        return new ErrorDetail(code.type(), code, message, null);
-    }
-
+    /** Builds the detail for a code; {@code param} may be {@code null} when no request parameter is involved. */
     public static ErrorDetail of(ErrorCode code, String message, String param) {
         return new ErrorDetail(code.type(), code, message, param);
     }
