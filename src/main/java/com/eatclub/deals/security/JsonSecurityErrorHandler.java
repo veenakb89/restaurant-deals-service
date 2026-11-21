@@ -5,6 +5,8 @@ import com.eatclub.deals.error.ErrorCode;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -29,6 +31,8 @@ import java.io.IOException;
 @Component
 public class JsonSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(JsonSecurityErrorHandler.class);
+
     private final AuthenticationEntryPoint bearerEntryPoint = new BearerTokenAuthenticationEntryPoint();
     private final AccessDeniedHandler bearerAccessDeniedHandler = new BearerTokenAccessDeniedHandler();
     private final JsonMapper jsonMapper;
@@ -40,6 +44,8 @@ public class JsonSecurityErrorHandler implements AuthenticationEntryPoint, Acces
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException e)
             throws IOException, ServletException {
+        // The reason, never the token itself.
+        log.warn("Unauthorized request to {} {}: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
         bearerEntryPoint.commence(request, response, e);
         writeBody(response, ErrorCode.UNAUTHORIZED);
     }
@@ -47,6 +53,8 @@ public class JsonSecurityErrorHandler implements AuthenticationEntryPoint, Acces
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException e)
             throws IOException, ServletException {
+        log.warn("Forbidden request to {} {}: the token lacks the required scope", request.getMethod(),
+                request.getRequestURI());
         bearerAccessDeniedHandler.handle(request, response, e);
         writeBody(response, ErrorCode.FORBIDDEN);
     }

@@ -2,6 +2,7 @@ package com.eatclub.deals.client;
 
 import com.eatclub.deals.client.RestaurantFeedProperties.CircuitBreakerSettings;
 import com.eatclub.deals.client.RestaurantFeedProperties.RetrySettings;
+import com.eatclub.deals.exception.FeedCircuitOpenException;
 import com.eatclub.deals.exception.FeedUnavailableException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.junit.jupiter.api.Test;
@@ -87,7 +88,7 @@ class FeedResilienceTest {
         failTimes(resilience, 4);
 
         assertThatThrownBy(() -> resilience.call(counting(() -> "feed")))
-                .isInstanceOf(FeedUnavailableException.class)
+                .isInstanceOf(FeedCircuitOpenException.class)
                 .hasCauseInstanceOf(CallNotPermittedException.class);
         assertThat(calls).as("upstream calls").hasValue(4);
     }

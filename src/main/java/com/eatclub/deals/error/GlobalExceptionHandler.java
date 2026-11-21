@@ -1,5 +1,6 @@
 package com.eatclub.deals.error;
 
+import com.eatclub.deals.exception.FeedCircuitOpenException;
 import com.eatclub.deals.exception.FeedUnavailableException;
 import com.eatclub.deals.exception.InvalidTimeOfDayException;
 import org.slf4j.Logger;
@@ -34,9 +35,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(ErrorCode.INVALID_TIME_OF_DAY, e.getMessage(), e.parameter());
     }
 
+    /** Same response either way; an open circuit is expected during an outage, so it's one line, not a stack trace. */
     @ExceptionHandler(FeedUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleFeedUnavailable(FeedUnavailableException e) {
-        log.error("Failed to fetch deal data from upstream source", e);
+        if (e instanceof FeedCircuitOpenException) {
+            log.warn("Feed circuit breaker is open; failing fast without calling upstream");
+        } else {
+            log.error("Failed to fetch deal data from upstream source", e);
+        }
         return respond(ErrorCode.FEED_UNAVAILABLE);
     }
 

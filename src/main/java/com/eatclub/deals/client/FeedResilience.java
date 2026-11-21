@@ -2,6 +2,7 @@ package com.eatclub.deals.client;
 
 import com.eatclub.deals.client.RestaurantFeedProperties.CircuitBreakerSettings;
 import com.eatclub.deals.client.RestaurantFeedProperties.RetrySettings;
+import com.eatclub.deals.exception.FeedCircuitOpenException;
 import com.eatclub.deals.exception.FeedUnavailableException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -26,7 +27,8 @@ import java.util.function.Supplier;
  *       upstream. After a while it lets a few trial calls through and closes again if they succeed.</li>
  * </ul>
  * Retry wraps the circuit breaker, so every attempt is counted by the breaker, and a call rejected because the
- * breaker is open is never retried. Every failure is a {@link FeedUnavailableException}.
+ * breaker is open is never retried. Every failure is a {@link FeedUnavailableException}; when the breaker is open,
+ * it's the subclass {@link FeedCircuitOpenException}.
  */
 @Component
 public class FeedResilience {
@@ -58,7 +60,7 @@ public class FeedResilience {
         try {
             return guarded.get();
         } catch (CallNotPermittedException e) {
-            throw new FeedUnavailableException(e);
+            throw new FeedCircuitOpenException(e);
         }
     }
 
@@ -69,9 +71,12 @@ public class FeedResilience {
                 .retryOnException(FeedResilience::isTransient)
                 .build());
         // The reason is logged as text: a Throwable passed last would be treated as the exception to log, not as {}.
-        retry.getEventPublisher().onRetry(event -> log.warn("Retrying the feed call (retry {}) in {}: {}",
-                event.getNumberOfRetryAttempts(), event.getWaitInterval(),
-                String.valueOf(event.getLastThrowable().getCause())));
+        retry.getEventPublisher()
+                .onRetry(event -> log.warn("Retrying the feed call (retry {}) in {}: {}",
+                        event.getNumberOfRetryAttempts(), event.getWaitInterval(),
+                        String.valueOf(event.getLastThrowable().getCause())))
+                .onError(event -> log.warn("Feed call failed after {} attempts: {}",
+                        event.getNumberOfRetryAttempts(), String.valueOf(event.getLastThrowable().getCause())));
         return retry;
     }
 

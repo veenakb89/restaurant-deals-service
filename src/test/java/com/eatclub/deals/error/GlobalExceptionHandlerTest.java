@@ -1,6 +1,11 @@
 package com.eatclub.deals.error;
 
+import com.eatclub.deals.exception.FeedCircuitOpenException;
+import com.eatclub.deals.exception.FeedUnavailableException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,10 +24,31 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Unit tests for the fallback paths of {@link GlobalExceptionHandler#handleExceptionInternal}: Spring MVC errors
  * that have no specific {@link ErrorCode}. The specific cases are covered end-to-end in {@code DealControllerTest}.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
     private final ServletWebRequest request = new ServletWebRequest(new MockHttpServletRequest());
+
+    @Test
+    void openCircuitGivesTheUsualFeedErrorAndLogsOneLineWithoutAStackTrace(CapturedOutput output) {
+        var ex = new FeedCircuitOpenException(new IllegalStateException("CircuitBreaker 'restaurantFeed' is OPEN"));
+
+        ResponseEntity<ApiErrorResponse> response = handler.handleFeedUnavailable(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody().error().code()).isEqualTo(ErrorCode.FEED_UNAVAILABLE);
+        assertThat(output).contains("Feed circuit breaker is open; failing fast");
+        assertThat(output).doesNotContain("FeedCircuitOpenException");
+    }
+
+    @Test
+    void otherFeedFailuresAreLoggedWithTheirStackTrace(CapturedOutput output) {
+        handler.handleFeedUnavailable(new FeedUnavailableException(new IllegalStateException("connection refused")));
+
+        assertThat(output).contains("Failed to fetch deal data from upstream source");
+        assertThat(output).contains("connection refused");
+    }
 
     @Test
     void otherSpringClientErrorBecomesBadRequestWithSpringsMessage() {

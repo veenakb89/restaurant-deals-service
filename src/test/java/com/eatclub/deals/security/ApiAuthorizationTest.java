@@ -6,10 +6,13 @@ import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,6 +32,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** The deals API needs a valid bearer token; the token endpoint and the API docs stay public. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 class ApiAuthorizationTest {
 
     private static final String DEALS = "/api/deals?timeOfDay=6:00pm";
@@ -98,6 +103,17 @@ class ApiAuthorizationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error.code").value("forbidden"))
                 .andExpect(jsonPath("$.error.message").value("The access token does not allow this request."));
+    }
+
+    @Test
+    void rejectedTokensAreLoggedWithTheReasonButNeverTheToken(CapturedOutput output) throws Exception {
+        String token = signedToken("some-other-secret-that-is-32-chars-long", claims -> { });
+
+        mockMvc.perform(get(PEAK_TIME).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(output).contains("Unauthorized request to GET /api/deals/peak-time");
+        assertThat(output).doesNotContain(token);
     }
 
     @Test

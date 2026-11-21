@@ -166,6 +166,20 @@ The deals endpoints (`/api/**`) need a JWT access token, sent as `Authorization:
 - **A shared secret.** With HS256, whoever can verify a token can also create one. That's fine here, because this app both issues and checks the tokens. IdPs sign with a private key (RS256) and publish the public keys (JWKS), so APIs can verify tokens without being able to create them. Switching to an IdP is a configuration change: `spring.security.oauth2.resourceserver.jwt.issuer-uri`.
 - **No early revocation.** A token stays valid until it expires, which is why its lifetime is short.
 
+## Logging
+
+- **Request ID:** every request gets an ID, returned in the `X-Request-Id` response header. A caller can send its own ID (letters, digits, `-` or `_`, up to 64 characters) to have it reused. Every log line written while handling the request starts with the ID, e.g. `[3f2a9c1e-...]`, so all the lines for one request can be found together.
+- **One summary line per request:** e.g. `GET /api/deals/peak-time -> 200 in 342 ms`. Swagger UI and the API docs are left out.
+- **Warnings:**
+  - each feed retry, and the final failure after all attempts;
+  - circuit breaker state changes, and requests failing fast while it's open (one line, no stack trace);
+  - rejected access tokens, with the reason;
+  - skipped or partial deal data.
+- **Errors** (with a stack trace): real upstream failures, and unexpected server errors.
+- **At startup:** one line with the feed URL, timeouts, retry and circuit-breaker settings.
+- **More detail:** set `logging.level.com.eatclub.deals=DEBUG` to also log each upstream feed call, with its duration and the number of restaurants.
+- **Never logged:** access tokens, the signing secret, request headers and request bodies.
+
 ## Business rules: questions and answers
 
 Clarify these with the product owner.
@@ -351,8 +365,9 @@ src/main/java/com/eatclub/deals
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
 ├── error/          HTTP error responses: the global error handler (GlobalExceptionHandler), error codes and types
 │                   (ErrorCode, ErrorType) and the error body (ApiErrorResponse, ErrorDetail)
-├── exception/      Domain exceptions (InvalidTimeOfDayException, FeedUnavailableException)
+├── exception/      Domain exceptions (InvalidTimeOfDayException, FeedUnavailableException, FeedCircuitOpenException)
 ├── config/         Spring configuration (OpenAPI/Swagger, the app's Clock)
+├── logging/        Request ID and one summary log line per request (RequestLoggingFilter)
 ├── security/       Token checks for /api/** (SecurityConfig), JSON 401/403 errors (JsonSecurityErrorHandler),
 │                   JWT settings, signing and validation (JwtProperties, JwtConfig)
 │   └── issuer/     Demo token endpoint (TokenController, TokenService, TokenResponse)
