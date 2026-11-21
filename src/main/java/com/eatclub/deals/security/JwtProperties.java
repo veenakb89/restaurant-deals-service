@@ -21,5 +21,5 @@ public record JwtProperties(
         @NotBlank String subject,
         @NotBlank String scope,
         @NotBlank @Size(min = 32) String secret,
-        @DefaultValue("1h") Duration tokenTtl) {
+        @DefaultValue("12h") Duration tokenTtl) {
 }

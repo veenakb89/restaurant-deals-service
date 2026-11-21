@@ -13,7 +13,7 @@ public record TokenResponse(
         @Schema(description = "Always `Bearer`", example = "Bearer")
         @JsonProperty("token_type") String tokenType,
 
-        @Schema(description = "Seconds until the token expires", example = "3600")
+        @Schema(description = "Seconds until the token expires", example = "43200")
         @JsonProperty("expires_in") long expiresIn,
 
         @Schema(description = "What the token allows", example = "deals:read")

@@ -4,13 +4,13 @@ The deals endpoints (`/api/v1/**`) need a JWT access token, sent as `Authorizati
 
 ## Flow
 
-1. **Get a token:** `POST /oauth2/token` (no parameters) returns a JWT signed with HS256 (HMAC-SHA256 with a shared secret). It's valid for 1 hour.
+1. **Get a token:** `POST /oauth2/token` (no parameters) returns a JWT signed with HS256 (HMAC-SHA256 with a shared secret). It's valid for 12 hours.
 
    ```json
    {
      "access_token": "eyJhbGciOiJIUzI1NiJ9...",
      "token_type": "Bearer",
-     "expires_in": 3600,
+     "expires_in": 43200,
      "scope": "deals:read"
    }
    ```
@@ -47,4 +47,4 @@ The default signing secret is for local runs only. Set the `JWT_SECRET` environm
 
 - **No client check.** The token endpoint doesn't check who is asking, so anyone who can reach it gets a token. In production, an identity provider (IdP) issues tokens only after the client authenticates (e.g. with OAuth2 client credentials), and this app's `security/issuer` package is removed.
 - **A shared secret.** With HS256, whoever can verify a token can also create one. That's fine here, because this app both issues and checks the tokens. IdPs sign with a private key (RS256) and publish the public keys (JWKS), so APIs can verify tokens without being able to create them. Switching to an IdP is a configuration change: `spring.security.oauth2.resourceserver.jwt.issuer-uri`.
-- **No early revocation.** A token stays valid until it expires, which is why its lifetime is short.
+- **No early revocation, and a long lifetime.** A token stays valid until it expires. The 12-hour lifetime keeps the demo convenient: one token lasts a whole review session. In production, access tokens would live for minutes (e.g. 5–15) and clients would get new ones from the IdP, which limits the damage if a token leaks.

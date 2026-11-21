@@ -43,7 +43,7 @@ class TokenEndpointTest {
         mockMvc.perform(post("/oauth2/token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token_type").value("Bearer"))
-                .andExpect(jsonPath("$.expires_in").value(3600))
+                .andExpect(jsonPath("$.expires_in").value(43200))
                 .andExpect(jsonPath("$.scope").value("deals:read"))
                 .andExpect(jsonPath("$.access_token").isString());
     }
@@ -57,7 +57,7 @@ class TokenEndpointTest {
         assertThat(jwt.getSubject()).isEqualTo("demo-client");
         assertThat(jwt.getAudience()).containsExactly("deals-api");
         assertThat(jwt.getClaimAsString("scope")).isEqualTo("deals:read");
-        assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofHours(1));
+        assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofHours(12));
     }
 
     @Test

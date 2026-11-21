@@ -25,9 +25,9 @@ class JwtPropertiesTest {
                     "security.jwt.secret=" + VALID_SECRET);
 
     @Test
-    void tokenLifetimeDefaultsToOneHour() {
+    void tokenLifetimeDefaultsToTwelveHours() {
         runner.run(context ->
-                assertThat(context.getBean(JwtProperties.class).tokenTtl()).isEqualTo(Duration.ofHours(1)));
+                assertThat(context.getBean(JwtProperties.class).tokenTtl()).isEqualTo(Duration.ofHours(12)));
     }
 
     @ParameterizedTest(name = "secret=''{0}''")

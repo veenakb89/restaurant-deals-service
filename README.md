@@ -6,7 +6,7 @@ A Spring Boot REST API that reads restaurant deal data from <https://eccdn.com.a
 - **Task 2:** when is the peak, the time window with the most active deals?
 - **Task 3:** a database design for storing the feed: PostgreSQL, with an ER diagram, notes and the schema. See [docs/database-design.md](docs/database-design.md).
 
-**Features:** versioned REST API (`/api/v1`) · JWT bearer-token security · one consistent error format · 60s feed cache, retry and circuit breaker · health checks and metrics · request IDs in every log line · Swagger UI · 270+ tests with 100% branch coverage.
+**Features:** versioned REST API (`/api/v1`) · JWT bearer-token security · one consistent error format · 60s feed cache, retry and circuit breaker · health checks and metrics · request IDs in every log line · Swagger UI · 210 tests.
 
 ## Quick start
 
@@ -16,20 +16,17 @@ Requires **Java 21+**. No Maven install is needed: the Maven Wrapper is included
 ./mvnw spring-boot:run                     # Windows: mvnw.cmd spring-boot:run
 ```
 
-The service starts on `http://localhost:8080`. Get a token, then call the API:
+The service starts on `http://localhost:8080`.
+
+> **The deals endpoints need a bearer token.** A request without one gets `401 Unauthorized`. Get a free demo token from `POST /oauth2/token` (no credentials needed), as shown below.
+
+Get a token, then call the API:
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/oauth2/token | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
 
 curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/v1/deals?timeOfDay=6:00pm"
 curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/v1/deals/peak-time"
-```
-
-On Windows PowerShell (use `curl.exe`, because `curl` is an alias there):
-
-```powershell
-$token = (Invoke-RestMethod -Method Post http://localhost:8080/oauth2/token).access_token
-curl.exe -H "Authorization: Bearer $token" "http://localhost:8080/api/v1/deals?timeOfDay=6:00pm"
 ```
 
 Or use **Swagger UI** at <http://localhost:8080/swagger-ui.html>: call `POST /oauth2/token`, click **Authorize**, paste the token, and try the endpoints. The OpenAPI spec is at <http://localhost:8080/v3/api-docs>.
@@ -40,7 +37,7 @@ Or use **Swagger UI** at <http://localhost:8080/swagger-ui.html>: call `POST /oa
 |---|---|---|
 | `GET /api/v1/deals?timeOfDay={time}` | Bearer token | The deals active at that time |
 | `GET /api/v1/deals/peak-time` | Bearer token | The window with the most active deals |
-| `POST /oauth2/token` | Public (demo) | A JWT access token, valid for 1 hour |
+| `POST /oauth2/token` | Public (demo) | A JWT access token, valid for 12 hours |
 | `GET /actuator/health` (and `/liveness`, `/readiness`) | Public | Health status |
 | `GET /actuator/metrics` | Bearer token | Metrics |
 
@@ -67,6 +64,17 @@ Or use **Swagger UI** at <http://localhost:8080/swagger-ui.html>: call `POST /oa
   ]
 }
 ```
+
+### Example results: 3pm, 6pm and 9pm
+
+What `GET /api/v1/deals?timeOfDay=…` returns for the three test cases, using the live feed. A restaurant's opening time is included and its closing time is not, so a restaurant that closes at 9:00pm isn't in the 9:00pm results.
+
+| `timeOfDay` | Deals | Restaurants (number of deals) |
+|---|---|---|
+| `3:00pm` | 5 | Masala Kitchen (2), ABC Chicken (2), Kekou (1) |
+| `6:00pm` | 9 | Masala Kitchen (2), ABC Chicken (2), Vrindavan (1), Kekou (2), Gyoza Gyoza Melbourne Central (2) |
+| `9:00pm` | 4 | ABC Chicken (2), Gyoza Gyoza Melbourne Central (2) |
+
 
 `GET /api/v1/deals/peak-time` (the start is inclusive and the end exclusive):
 
@@ -111,7 +119,7 @@ All settings are in `src/main/resources/application.properties`.
 | `restaurant-feed.retry.*` | 3 attempts, 200ms backoff ×2 | Retry of temporary failures |
 | `restaurant-feed.circuit-breaker.*` | opens at 50% of 10 calls, for 30s | Fail fast during an outage |
 | `spring.cache.caffeine.spec` | `expireAfterWrite=60s` | How long the feed is cached |
-| `security.jwt.*` | issuer `restaurant-deals`, audience `deals-api`, scope `deals:read`, `1h` | Token claims and lifetime |
+| `security.jwt.*` | issuer `restaurant-deals`, audience `deals-api`, scope `deals:read`, `12h` | Token claims and lifetime |
 | `security.jwt.secret` | a local-only default | Signing secret. **Set `JWT_SECRET` (32+ characters) outside local runs.** |
 | `logging.level.com.eatclub.deals` | `INFO` | `DEBUG` also logs each upstream call |
 
