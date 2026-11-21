@@ -166,6 +166,17 @@ The deals endpoints (`/api/**`) need a JWT access token, sent as `Authorization:
 - **A shared secret.** With HS256, whoever can verify a token can also create one. That's fine here, because this app both issues and checks the tokens. IdPs sign with a private key (RS256) and publish the public keys (JWKS), so APIs can verify tokens without being able to create them. Switching to an IdP is a configuration change: `spring.security.oauth2.resourceserver.jwt.issuer-uri`.
 - **No early revocation.** A token stays valid until it expires, which is why its lifetime is short.
 
+## Health and metrics
+
+| Endpoint | Access | Use |
+|---|---|---|
+| `GET /actuator/health` | Public | Overall status, e.g. `{"status":"UP"}` |
+| `GET /actuator/health/liveness` | Public | Is the app running? (e.g. for Kubernetes restarts) |
+| `GET /actuator/health/readiness` | Public | Can the app take traffic? (e.g. for load balancers) |
+| `GET /actuator/metrics`, `/actuator/metrics/{name}` | Any valid access token | Request counts and latency (`http.server.requests`), JVM and system metrics |
+
+In production, the Actuator endpoints would usually be on a separate internal port (`management.server.port`), or metrics would need a dedicated scope such as `metrics:read`.
+
 ## Logging
 
 - **Request ID:** every request gets an ID, returned in the `X-Request-Id` response header. A caller can send its own ID (letters, digits, `-` or `_`, up to 64 characters) to have it reused. Every log line written while handling the request starts with the ID, e.g. `[3f2a9c1e-...]`, so all the lines for one request can be found together.

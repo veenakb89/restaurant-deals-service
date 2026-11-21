@@ -11,7 +11,8 @@ import static org.springframework.security.config.Customizer.withDefaults;
 
 /**
  * The deals API ({@code /api/**}) needs a valid JWT bearer token with the configured scope
- * ({@code security.jwt.scope}, {@code deals:read} by default).
+ * ({@code security.jwt.scope}, {@code deals:read} by default). Actuator health checks are public (for load
+ * balancers and probes); the other Actuator endpoints, such as metrics, need any valid token.
  * Everything else (the demo token endpoint and Swagger) is public. The API is stateless: no sessions, cookies or
  * login forms, so CSRF protection isn't needed.
  */
@@ -32,6 +33,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/**").hasAuthority(SCOPE_PREFIX + properties.scope())
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(withDefaults())

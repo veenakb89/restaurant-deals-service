@@ -39,6 +39,12 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- Health checks (/actuator/health, liveness, readiness) and metrics (/actuator/metrics) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Retry and circuit breaker for the upstream feed (plain Resilience4j modules, no Spring Boot starter) -->
         <dependency>
             <groupId>io.github.resilience4j</groupId>
