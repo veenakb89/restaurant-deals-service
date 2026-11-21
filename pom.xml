@@ -39,6 +39,16 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- Small in-memory cache for the upstream feed -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- Health checks (/actuator/health, liveness, readiness) and metrics (/actuator/metrics) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

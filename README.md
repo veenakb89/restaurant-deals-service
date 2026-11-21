@@ -347,7 +347,7 @@ A: Yes. They're handled as separate deals. Example: Kekou and Gyoza Gyoza each h
 ### Data source
 
 **Q: Is the feed data cached?**
-A: No. The feed is fetched from the source URL on every request.
+A: Yes, in memory for 60 seconds. The first request fetches the feed, and every request in the next 60 seconds (to either endpoint, for any `timeOfDay`) uses that copy. So a change in the source, such as a deal selling out, can take up to 60 seconds to show. Failures aren't cached: if the fetch fails, the next request tries again. When the copy expires, only one request fetches a new one while the others wait for it. Change the time with `spring.cache.caffeine.spec` (`expireAfterWrite=60s`).
 
 **Q: The data source is unreachable, too slow, returns an error status, or returns invalid JSON. What happens?**
 A: The request returns `502 Bad Gateway` with code `feed_unavailable` and the message "Deal data source is currently unavailable." No partial or old data is returned. Before giving up, temporary problems are retried (see the next question). The connection timeout is 2 seconds and the read timeout is 5 seconds.
@@ -371,7 +371,7 @@ src/main/java/com/eatclub/deals
 ├── controller/     REST endpoints: routes and API docs (DealApi), implementation (DealController)
 ├── dto/            API request/response bodies; currently responses only (ActiveDealsResponse, ActiveDeal, PeakTimeResponse)
 ├── service/        Business logic (DealService)
-├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient), with retry and a circuit breaker
+├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient), with a 60s cache, retry and a circuit breaker
 │                   (FeedResilience), and its settings (RestaurantFeedProperties)
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
 ├── error/          HTTP error responses: the global error handler (GlobalExceptionHandler), error codes and types
