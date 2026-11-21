@@ -6,7 +6,6 @@ import com.eatclub.deals.client.model.Restaurant;
 import com.eatclub.deals.client.model.RestaurantFeed;
 import com.eatclub.deals.dto.ActiveDeal;
 import com.eatclub.deals.exception.InvalidTimeOfDayException;
-import com.eatclub.deals.time.TimeOfDayParser;
 import com.eatclub.deals.time.TimeWindow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,15 +14,14 @@ import org.springframework.stereotype.Service;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Business rules:
  * <ul>
  *   <li>A deal with no hours of its own runs for the restaurant's opening hours.</li>
- *   <li>A deal with only part of its hours gets the missing side from the restaurant: no {@code open} means the
- *       restaurant's opening time, no {@code close} means its closing time (see {@link TimeWindow#from} and
- *       {@link TimeWindow#until}).</li>
+ *   <li>A deal's hours must have both {@code open} and {@code close}, or neither. A deal with only one of them
+ *       (or a blank one) is logged and runs for the restaurant's hours, like a deal with no hours. This is a
+ *       temporary assumption until the product owner confirms the rule.</li>
  *   <li>A deal is only available while the restaurant is open, so a deal's own hours are
  *       intersected with the restaurant's hours (e.g. Vrindavan's 3pm–9pm deal is only
  *       redeemable 6pm–9pm, when the restaurant is open).</li>
@@ -74,9 +72,8 @@ public class DealService {
             for (Deal deal : restaurant.deals()) {
                 try {
                     TimeWindow restaurantHours = windowOrAllDay(restaurant.open(), restaurant.close());
-                    // An empty result means the deal can never be active (e.g. it starts after the restaurant closes).
-                    dealHours(deal, restaurantHours).ifPresent(dealHours ->
-                            result.add(new ScheduledDeal(restaurant, deal, restaurantHours, dealHours)));
+                    TimeWindow dealHours = dealHours(restaurant, deal, restaurantHours);
+                    result.add(new ScheduledDeal(restaurant, deal, restaurantHours, dealHours));
                 } catch (InvalidTimeOfDayException e) {
                     // Skip a single malformed record rather than failing the whole request.
                     log.warn("Skipping deal {} of restaurant {}: {}", deal.objectId(), restaurant.objectId(), e.getMessage());
@@ -87,22 +84,18 @@ public class DealService {
     }
 
     /**
-     * The deal's hours. A missing (or blank) {@code open} is filled with the restaurant's opening time and a missing
-     * {@code close} with its closing time; no hours at all means the restaurant's hours.
+     * The deal's own hours when it has both {@code open} and {@code close}; otherwise the restaurant's hours.
+     * Partial hours (only one of them, or a blank one) are ignored with a warning.
      */
-    private static Optional<TimeWindow> dealHours(Deal deal, TimeWindow restaurantHours) {
-        boolean hasOpen = isPresent(deal.open());
-        boolean hasClose = isPresent(deal.close());
-        if (hasOpen && hasClose) {
-            return Optional.of(TimeWindow.parse(deal.open(), deal.close()));
+    private static TimeWindow dealHours(Restaurant restaurant, Deal deal, TimeWindow restaurantHours) {
+        if (hasHours(deal.open(), deal.close())) {
+            return TimeWindow.parse(deal.open(), deal.close());
         }
-        if (hasOpen) {
-            return restaurantHours.from(TimeOfDayParser.parse(deal.open()));
+        if (isPresent(deal.open()) || isPresent(deal.close())) {
+            log.warn("Deal {} of restaurant {} has partial hours (open='{}', close='{}'); using the restaurant's hours",
+                    deal.objectId(), restaurant.objectId(), deal.open(), deal.close());
         }
-        if (hasClose) {
-            return restaurantHours.until(TimeOfDayParser.parse(deal.close()));
-        }
-        return Optional.of(restaurantHours);
+        return restaurantHours;
     }
 
     private static TimeWindow windowOrAllDay(String open, String close) {

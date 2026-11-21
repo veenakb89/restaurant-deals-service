@@ -106,9 +106,7 @@ Clarify these with the product owner.
 
 ### When is a deal active?
 
-A deal is only ever active while its restaurant is open. When a deal gives only `open` or only `close`, the missing side comes from the restaurant: no `open` means the restaurant's opening time, and no `close` means its closing time. A blank value counts as missing.
-
-Partial times are read on the day the restaurant opens. A time after midnight only counts as the next day while the restaurant is still open; any other time when the restaurant is closed counts as before opening.
+A deal is only ever active while its restaurant is open. A deal's own hours must have both `open` and `close`, or neither.
 
 | Question | Input | Expected output | Explanation |
 |---|---|---|---|
@@ -117,24 +115,9 @@ Partial times are read on the day the restaurant opens. A time after midnight on
 | A deal starts before its restaurant opens. When is it active? | Vrindavan 6pm–9pm, deal 3pm–9pm | Active 6pm–9pm | It starts when the restaurant opens. |
 | A deal ends after its restaurant closes. When is it active? | Restaurant 9am–10pm, deal 5pm–11pm | Active 5pm–10pm | It stops when the restaurant closes. |
 | A deal's hours are entirely outside its restaurant's hours. Is it active? | Restaurant 9am–5pm, deal 6pm–8pm | Never active | The restaurant is closed for the whole deal. |
-| A deal has `open` but no `close`. When is it active? | Restaurant 9am–10pm, deal `open` 6pm | Active 6pm–10pm | Missing `close` → the restaurant's closing time. |
-| A deal has `close` but no `open`. When is it active? | Restaurant 9am–10pm, deal `close` 2pm | Active 9am–2pm | Missing `open` → the restaurant's opening time. |
-| A deal's `open` is blank. When is it active? | Restaurant 9am–10pm, deal `open` " ", `close` 2pm | Active 9am–2pm | A blank value counts as missing. |
-| A deal's only time is before the restaurant opens. | Restaurant 9am–10pm, deal `open` 7am | Active 9am–10pm | It starts when the restaurant opens. |
-| A deal's only time is after the restaurant closes. | Restaurant 9am–10pm, deal `close` 11pm | Active 9am–10pm | It stops when the restaurant closes. |
-| A deal's `open` is at or after closing time. | Restaurant 9am–10pm, deal `open` 10pm or 11pm | Never active | The restaurant has already closed. |
-| A deal's `close` is at or before opening time. | Restaurant 9am–10pm, deal `close` 9am or 8am | Never active | The deal ends before the restaurant opens. |
-| A partial deal at a restaurant open past midnight (`open` before midnight). | Restaurant 6pm–2am, deal `open` 11pm | Active 11pm–2am | Runs past midnight until the restaurant closes. |
-| A partial deal at a restaurant open past midnight (`open` after midnight). | Restaurant 6pm–2am, deal `open` 1am | Active 1am–2am | 1am counts as the next day, because the restaurant is still open then. |
-| A partial deal at a restaurant open past midnight (`close` after midnight). | Restaurant 6pm–2am, deal `close` 1am | Active 6pm–1am | Runs from opening until 1am the next day. |
-| A partial deal whose `open` is while a late-night restaurant is closed. | Restaurant 6pm–2am, deal `open` 3am | Active 6pm–2am | 3am counts as before the 6pm opening, so it starts at opening. |
-| A partial deal whose `close` is while a late-night restaurant is closed. | Restaurant 6pm–2am, deal `close` 3am | Never active | 3am counts as before the 6pm opening, so it ends before the restaurant opens. |
+| A deal has only `open` or only `close`, or one of them is blank. When is it active? *(To be confirmed with the product owner.)* | Restaurant 9am–5pm, deal `open` 6pm and no `close` | Active 9am–5pm; a warning is logged | The partial value is ignored and the deal runs for its restaurant's hours, the same as a deal with no hours. It isn't parsed, so even an unreadable value like `"abc"` is ignored. No deal in the current feed has partial hours. |
 | A restaurant has no opening hours, or blank ones. Is it open? | Restaurant with no `open`/`close`, deal with no hours | Active all day | The restaurant is treated as open all day. |
 | A restaurant has only an opening time. Is it open? | Restaurant `open` 9am, no `close` | Active all day | Incomplete restaurant hours count as no hours. |
-| A partial deal at a restaurant with no hours (`open` only). | Restaurant with no hours, deal `open` 6pm | Active 6pm–midnight | "All day" means midnight to midnight. |
-| A partial deal at a restaurant with no hours (`close` only). | Restaurant with no hours, deal `close` 2pm | Active midnight–2pm | Runs from midnight until 2pm. |
-| A partial deal at a restaurant with no hours (`close` 12:00am). | Restaurant with no hours, deal `close` 12:00am | Active all day | Until midnight is the whole day. |
-| A partial deal time can't be read. | Restaurant 9am–5pm, deal `open` "abc" | Not returned; a warning is logged | Same as any malformed deal hours. |
 
 Times in "Expected output" include the start and exclude the end: "Active 6pm–10pm" means active at 6:00pm and closed at 10:00pm.
 

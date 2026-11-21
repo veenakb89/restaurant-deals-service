@@ -118,140 +118,33 @@ class DealServiceTest {
     }
 
     /**
-     * A deal with only {@code open} or only {@code close}: the missing side comes from the restaurant.
-     * Partial times are read on the day the restaurant opens.
+     * A deal must have both {@code open} and {@code close}, or neither. Until the product owner confirms the rule,
+     * a deal with only one of them (or a blank one) ignores them and runs for its restaurant's hours.
      */
     @Nested
     class PartialDealHours {
 
-        // --- restaurant open 9am–10pm ---
+        @ParameterizedTest(name = "deal open=''{0}'' close=''{1}''")
+        @CsvSource(value = {
+                "6:00pm, NULL",  // open only
+                "NULL, 6:00pm",  // close only
+                "6:00pm, ' '",   // blank close
+                "' ', 6:00pm"    // blank open
+        }, nullValues = "NULL")
+        void partialHoursFallBackToTheRestaurantsHours(String open, String close) {
+            // The partial 6pm value is ignored, so the deal runs for the restaurant's 9am–5pm.
+            useFeed(restaurant("9:00am", "5:00pm", deal(open, close)));
 
-        @Test
-        void openOnlyRunsUntilTheRestaurantCloses() {
-            useFeed(restaurant("9:00am", "10:00pm", deal("6:00pm", null)));
-
-            assertInactiveAt("17:59", "22:00");
-            assertActiveAt("18:00", "21:59");
+            assertInactiveAt("08:59", "17:00", "18:30");
+            assertActiveAt("09:00", "12:00", "16:59");
         }
 
         @Test
-        void closeOnlyRunsFromWhenTheRestaurantOpens() {
-            useFeed(restaurant("9:00am", "10:00pm", deal(null, "2:00pm")));
+        void partialHoursAreIgnoredEvenIfUnreadable() {
+            // The partial value isn't used, so it isn't parsed either; the deal still runs for the restaurant's hours.
+            useFeed(restaurant("9:00am", "5:00pm", deal("abc", null)));
 
-            assertInactiveAt("08:59", "14:00");
-            assertActiveAt("09:00", "13:59");
-        }
-
-        @Test
-        void openBeforeTheRestaurantOpensStartsWhenItOpens() {
-            useFeed(restaurant("9:00am", "10:00pm", deal("7:00am", null)));
-
-            assertInactiveAt("07:00", "08:59", "22:00");
-            assertActiveAt("09:00", "21:59");
-        }
-
-        @Test
-        void closeAfterTheRestaurantClosesEndsWhenItCloses() {
-            useFeed(restaurant("9:00am", "10:00pm", deal(null, "11:00pm")));
-
-            assertActiveAt("09:00", "21:59");
-            assertInactiveAt("22:00", "22:30");
-        }
-
-        @ParameterizedTest(name = "open={0}")
-        @ValueSource(strings = {"10:00pm", "11:00pm"})
-        void openAtOrAfterClosingIsNeverActive(String open) {
-            useFeed(restaurant("9:00am", "10:00pm", deal(open, null)));
-
-            assertInactiveAt("09:00", "12:00", "21:59", "22:30", "23:30");
-        }
-
-        @ParameterizedTest(name = "close={0}")
-        @ValueSource(strings = {"9:00am", "8:00am"})
-        void closeAtOrBeforeOpeningIsNeverActive(String close) {
-            useFeed(restaurant("9:00am", "10:00pm", deal(null, close)));
-
-            assertInactiveAt("08:30", "09:00", "12:00", "21:59");
-        }
-
-        @ParameterizedTest(name = "open=''{0}'' close=''{1}''")
-        @CsvSource({
-                "' ', 2:00pm, 13:59, 14:00",   // blank open → restaurant's 9am
-                "6:00pm, ' ', 18:00, 17:59"    // blank close → restaurant's 10pm
-        })
-        void blankValueCountsAsMissing(String open, String close, String activeTime, String inactiveTime) {
-            useFeed(restaurant("9:00am", "10:00pm", deal(open, close)));
-
-            assertActiveAt(activeTime);
-            assertInactiveAt(inactiveTime);
-        }
-
-        // --- restaurant open 6pm–2am (crosses midnight) ---
-
-        @Test
-        void openBeforeMidnightRunsUntilClosingAfterMidnight() {
-            useFeed(restaurant("6:00pm", "2:00am", deal("11:00pm", null)));
-
-            assertInactiveAt("22:59", "02:00");
-            assertActiveAt("23:00", "00:30", "01:59");
-        }
-
-        @Test
-        void openAfterMidnightWhileStillOpenRunsUntilClosing() {
-            useFeed(restaurant("6:00pm", "2:00am", deal("1:00am", null)));
-
-            assertInactiveAt("18:00", "23:00", "00:59", "02:00");
-            assertActiveAt("01:00", "01:59");
-        }
-
-        @Test
-        void closeAfterMidnightWhileStillOpen() {
-            useFeed(restaurant("6:00pm", "2:00am", deal(null, "1:00am")));
-
-            assertActiveAt("18:00", "00:59");
-            assertInactiveAt("01:00", "17:59");
-        }
-
-        @Test
-        void openInTheClosedGapCountsAsBeforeOpening() {
-            // 3am is while the restaurant is closed, so it's read as earlier on the opening day: the deal starts at 6pm.
-            useFeed(restaurant("6:00pm", "2:00am", deal("3:00am", null)));
-
-            assertActiveAt("18:00", "01:59");
-            assertInactiveAt("03:00", "17:59", "02:00");
-        }
-
-        @Test
-        void closeInTheClosedGapCountsAsBeforeOpening() {
-            // 3am is read as earlier on the opening day, before the 6pm opening, so the deal is never active.
-            useFeed(restaurant("6:00pm", "2:00am", deal(null, "3:00am")));
-
-            assertInactiveAt("18:00", "01:00", "03:00");
-        }
-
-        // --- restaurant with no hours (open all day) ---
-
-        @Test
-        void openOnlyAtAnAllDayRestaurantRunsUntilMidnight() {
-            useFeed(restaurant(null, null, deal("6:00pm", null)));
-
-            assertInactiveAt("17:59", "00:00");
-            assertActiveAt("18:00", "23:59");
-        }
-
-        @Test
-        void closeOnlyAtAnAllDayRestaurantRunsFromMidnight() {
-            useFeed(restaurant(null, null, deal(null, "2:00pm")));
-
-            assertActiveAt("00:00", "13:59");
-            assertInactiveAt("14:00", "23:59");
-        }
-
-        @Test
-        void closeAtMidnightAtAnAllDayRestaurantIsAllDay() {
-            useFeed(restaurant(null, null, deal(null, "12:00am")));
-
-            assertActiveAt("00:00", "12:00", "23:59");
+            assertActiveAt("12:00");
         }
     }
 
@@ -350,13 +243,6 @@ class DealServiceTest {
             useFeed(restaurant("9:00am", "5:00pm", deal("not-a-time", "5:00pm"), deal(null, null)));
 
             assertThat(activeAt(12, 0)).hasSize(1);
-        }
-
-        @Test
-        void skipsDealsWithAMalformedPartialHour() {
-            useFeed(restaurant("9:00am", "5:00pm", deal("abc", null), deal(null, "xyz"), deal("ok", null, null)));
-
-            assertThat(dealIdsAt(12, 0)).containsExactly("ok");
         }
 
         @Test
