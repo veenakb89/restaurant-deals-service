@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.eatclub.deals</groupId>
+    <groupId>com.eatclub</groupId>
     <artifactId>restaurant-deals-service</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>restaurant-deals-service</name>

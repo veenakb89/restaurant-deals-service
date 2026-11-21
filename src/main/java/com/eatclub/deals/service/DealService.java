@@ -4,9 +4,9 @@ import com.eatclub.deals.client.RestaurantFeedClient;
 import com.eatclub.deals.client.model.Deal;
 import com.eatclub.deals.client.model.Restaurant;
 import com.eatclub.deals.client.model.RestaurantFeed;
-import com.eatclub.deals.dto.DealResponse;
+import com.eatclub.deals.dto.ActiveDeal;
 import com.eatclub.deals.exception.InvalidTimeOfDayException;
-import com.eatclub.deals.util.TimeWindow;
+import com.eatclub.deals.time.TimeWindow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,10 +37,10 @@ public class DealService {
     }
 
     /** All deals active at the given time, in source order. */
-    public List<DealResponse> findActiveDeals(LocalTime time) {
+    public List<ActiveDeal> findActiveDeals(LocalTime time) {
         return scheduledDeals(feedClient.fetch()).stream()
                 .filter(d -> d.isActiveAt(time))
-                .map(d -> DealResponse.from(d.restaurant(), d.deal()))
+                .map(d -> ActiveDeal.from(d.restaurant(), d.deal()))
                 .toList();
     }
 

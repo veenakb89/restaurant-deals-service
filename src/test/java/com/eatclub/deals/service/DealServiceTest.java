@@ -4,7 +4,7 @@ import com.eatclub.deals.client.RestaurantFeedClient;
 import com.eatclub.deals.client.model.Deal;
 import com.eatclub.deals.client.model.Restaurant;
 import com.eatclub.deals.client.model.RestaurantFeed;
-import com.eatclub.deals.dto.DealResponse;
+import com.eatclub.deals.dto.ActiveDeal;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -23,7 +23,7 @@ class DealServiceTest {
     private final DealService service = new DealService(client);
 
     @Test
-    void at3pm() throws IOException {
+    void returnsFiveDealsAt3pm() throws IOException {
         useFixture();
 
         assertThat(dealIds(service.findActiveDeals(LocalTime.of(15, 0)))).containsExactly(
@@ -37,21 +37,21 @@ class DealServiceTest {
     }
 
     @Test
-    void at6pm() throws IOException {
+    void returnsNineDealsAt6pm() throws IOException {
         useFixture();
 
-        List<DealResponse> deals = service.findActiveDeals(LocalTime.of(18, 0));
+        List<ActiveDeal> deals = service.findActiveDeals(LocalTime.of(18, 0));
 
         assertThat(deals).hasSize(9);
-        assertThat(deals).extracting(DealResponse::restaurantName).doesNotContain("OzzyThai Cafe Bar ");
+        assertThat(deals).extracting(ActiveDeal::restaurantName).doesNotContain("OzzyThai Cafe Bar ");
     }
 
     @Test
-    void at9pm() throws IOException {
+    void returnsFourDealsAt9pm() throws IOException {
         useFixture();
 
         assertThat(service.findActiveDeals(LocalTime.of(21, 0)))
-                .extracting(DealResponse::restaurantName)
+                .extracting(ActiveDeal::restaurantName)
                 .containsExactly("ABC Chicken", "ABC Chicken",
                         "Gyoza Gyoza Melbourne Central", "Gyoza Gyoza Melbourne Central");
     }
@@ -60,9 +60,9 @@ class DealServiceTest {
     void mapsAllResponseFields() throws IOException {
         useFixture();
 
-        DealResponse first = service.findActiveDeals(LocalTime.of(15, 0)).getFirst();
+        ActiveDeal first = service.findActiveDeals(LocalTime.of(15, 0)).getFirst();
 
-        assertThat(first).isEqualTo(new DealResponse(
+        assertThat(first).isEqualTo(new ActiveDeal(
                 "DEA567C5-F64C-3C03-FF00-E3B24909BE00", "Masala Kitchen", "55 Walsh Street", "Lower East",
                 "3:00pm", "9:00pm", "DEA567C5-0000-3C03-FF00-E3B24909BE00", "50", "false", "true", "5"));
     }
@@ -81,8 +81,8 @@ class DealServiceTest {
         }
     }
 
-    private static List<String> dealIds(List<DealResponse> deals) {
-        return deals.stream().map(DealResponse::dealObjectId).toList();
+    private static List<String> dealIds(List<ActiveDeal> deals) {
+        return deals.stream().map(ActiveDeal::dealObjectId).toList();
     }
 
     private static Restaurant restaurant(String open, String close, Deal... deals) {

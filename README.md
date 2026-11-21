@@ -5,6 +5,12 @@ A Spring Boot API that reads restaurant deal data from
 
 - **Task 1:** `GET /api/deals?timeOfDay=…` returns the deals active at a given time.
 
+## Tech stack
+
+- Java 21, Spring Boot 4
+- springdoc-openapi (Swagger UI)
+- JUnit 5, AssertJ, Mockito
+
 ## Requirements
 
 - Java 21+
@@ -25,7 +31,8 @@ The OpenAPI spec is at <http://localhost:8080/v3/api-docs>.
 ## Test
 
 ```bash
-./mvnw test
+./mvnw test                     # macOS / Linux
+mvnw.cmd test                   # Windows
 ```
 
 The tests use a snapshot of the restaurant feed (`src/test/resources/challengedata.json`), so they don't need network access.
@@ -60,12 +67,37 @@ curl "http://localhost:8080/api/deals?timeOfDay=6:00pm"
 }
 ```
 
-Errors are returned as `application/problem+json`:
+### Errors
 
-| Case | Status |
+Every error returns the same JSON body (`application/json`), and the HTTP status is set on the response:
+
+```json
+{
+  "error": {
+    "type": "invalid_request_error",
+    "code": "invalid_time_of_day",
+    "message": "Invalid time of day: '25:00'. Expected a time such as '3:00pm', '3pm' or '15:00'.",
+    "param": "timeOfDay"
+  }
+}
+```
+
+| Field | Meaning |
 |---|---|
-| `timeOfDay` missing or not a valid time | `400 Bad Request` |
-| Upstream data source unreachable | `502 Bad Gateway` |
+| `type` | Broad category: `invalid_request_error` (a problem with the request) or `api_error` (a problem on the server side) |
+| `code` | Stable, machine-readable error code. Clients should rely on `code`, not on `message`, which may change. |
+| `message` | Human-readable explanation |
+| `param` | The request parameter that caused the error. Only present for parameter errors. |
+
+| Case | Status | `type` | `code` |
+|---|---|---|---|
+| `timeOfDay` is not a valid time | `400 Bad Request` | `invalid_request_error` | `invalid_time_of_day` |
+| A required parameter is missing | `400 Bad Request` | `invalid_request_error` | `missing_parameter` |
+| Any other malformed request | `4xx` | `invalid_request_error` | `bad_request` |
+| Unknown URL | `404 Not Found` | `invalid_request_error` | `not_found` |
+| Wrong HTTP method | `405 Method Not Allowed` | `invalid_request_error` | `method_not_allowed` |
+| Upstream data source unreachable, failing or returning invalid data | `502 Bad Gateway` | `api_error` | `feed_unavailable` |
+| Unexpected server error (no internal details are exposed) | `500 Internal Server Error` | `api_error` | `internal_error` |
 
 ## Results for the requested test cases
 
@@ -89,13 +121,13 @@ Errors are returned as `application/problem+json`:
 ```
 src/main/java/com/eatclub/deals
 ├── controller/     REST endpoints (DealController)
-├── dto/            API response objects (DealResponse, DealsResponse)
+├── dto/            API response objects (ActiveDealsResponse, ActiveDeal, ApiErrorResponse, ErrorDetail)
 ├── service/        Business logic (DealService)
 ├── client/         Fetches the upstream restaurant feed (RestaurantFeedClient)
 │   └── model/      Shape of the feed's JSON (RestaurantFeed, Restaurant, Deal)
-├── exception/      Custom exceptions and the global error handler
+├── exception/      Custom exceptions, error codes and types (ErrorCode, ErrorType) and the global error handler (GlobalExceptionHandler)
 ├── config/         Spring configuration (OpenAPI/Swagger)
-└── util/           Time parsing and the TimeWindow type
+└── time/           Time parsing (TimeOfDayParser) and opening-hours windows (TimeWindow)
 ```
 
 The upstream JSON models (`client/model`) are kept separate from the API's response objects (`dto`), so a change in the upstream format doesn't leak into this API's contract.

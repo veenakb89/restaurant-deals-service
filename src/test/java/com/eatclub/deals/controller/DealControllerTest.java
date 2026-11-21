@@ -2,11 +2,13 @@ package com.eatclub.deals.controller;
 
 import com.eatclub.deals.client.RestaurantFeedClient;
 import com.eatclub.deals.client.model.RestaurantFeed;
+import com.eatclub.deals.exception.FeedUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.ResourceAccessException;
@@ -14,9 +16,14 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.InputStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,23 +80,73 @@ class DealControllerTest {
     }
 
     @Test
-    void rejectsInvalidTime() throws Exception {
+    void invalidTimeReturnsError() throws Exception {
         mockMvc.perform(get("/api/deals").param("timeOfDay", "25:00"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").exists());
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
+                .andExpect(jsonPath("$.error.code").value("invalid_time_of_day"))
+                .andExpect(jsonPath("$.error.message", containsString("Invalid time of day: '25:00'")))
+                .andExpect(jsonPath("$.error.param").value("timeOfDay"))
+                .andExpect(jsonPath("$.*", hasSize(1)))       // only "error" at the top level
+                .andExpect(jsonPath("$.error.*", hasSize(4))); // type, code, message, param
     }
 
     @Test
-    void rejectsMissingTime() throws Exception {
+    void missingTimeReturnsError() throws Exception {
         mockMvc.perform(get("/api/deals"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
+                .andExpect(jsonPath("$.error.code").value("missing_parameter"))
+                .andExpect(jsonPath("$.error.message").value("Required parameter 'timeOfDay' is not present."))
+                .andExpect(jsonPath("$.error.param").value("timeOfDay"));
+    }
+
+    @Test
+    void unknownUrlReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/unknown"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
+                .andExpect(jsonPath("$.error.code").value("not_found"))
+                .andExpect(jsonPath("$.error.message").value("No endpoint found at this URL."))
+                .andExpect(jsonPath("$.error.param").doesNotExist());
+    }
+
+    @Test
+    void wrongMethodReturnsMethodNotAllowed() throws Exception {
+        mockMvc.perform(post("/api/deals"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", containsString("GET")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("invalid_request_error"))
+                .andExpect(jsonPath("$.error.code").value("method_not_allowed"));
     }
 
     @Test
     void returnsBadGatewayWhenSourceIsDown() throws Exception {
-        when(client.fetch()).thenThrow(new ResourceAccessException("timeout"));
+        when(client.fetch()).thenThrow(new FeedUnavailableException(new ResourceAccessException("timeout")));
 
         mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
-                .andExpect(status().isBadGateway());
+                .andExpect(status().isBadGateway())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("api_error"))
+                .andExpect(jsonPath("$.error.code").value("feed_unavailable"))
+                .andExpect(jsonPath("$.error.message").value("Deal data source is currently unavailable."))
+                .andExpect(jsonPath("$.error.param").doesNotExist());
+    }
+
+    @Test
+    void unexpectedErrorReturnsGenericServerError() throws Exception {
+        when(client.fetch()).thenThrow(new IllegalStateException("secret internal detail"));
+
+        mockMvc.perform(get("/api/deals").param("timeOfDay", "3:00pm"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error.type").value("api_error"))
+                .andExpect(jsonPath("$.error.code").value("internal_error"))
+                .andExpect(jsonPath("$.error.message").value("An unexpected error occurred."))
+                .andExpect(content().string(not(containsString("secret internal detail"))));
     }
 }

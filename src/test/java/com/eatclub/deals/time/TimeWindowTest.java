@@ -1,4 +1,4 @@
-package com.eatclub.deals.util;
+package com.eatclub.deals.time;
 
 import org.junit.jupiter.api.Test;
 

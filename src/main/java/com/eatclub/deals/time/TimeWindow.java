@@ -1,4 +1,4 @@
-package com.eatclub.deals.util;
+package com.eatclub.deals.time;
 
 import java.time.LocalTime;
 
@@ -14,7 +14,7 @@ public record TimeWindow(LocalTime start, LocalTime end) {
     public static final TimeWindow ALL_DAY = new TimeWindow(LocalTime.MIDNIGHT, LocalTime.MIDNIGHT);
 
     public static TimeWindow parse(String start, String end) {
-        return new TimeWindow(TimeOfDay.parse(start), TimeOfDay.parse(end));
+        return new TimeWindow(TimeOfDayParser.parse(start), TimeOfDayParser.parse(end));
     }
 
     public boolean contains(LocalTime time) {
