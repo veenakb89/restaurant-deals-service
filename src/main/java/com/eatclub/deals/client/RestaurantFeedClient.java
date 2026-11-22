@@ -20,6 +20,9 @@ public class RestaurantFeedClient {
     /** Name of the cache that holds the last successful feed. */
     public static final String CACHE = "restaurantFeed";
 
+    /** The cache's single key (a SpEL string literal): there is one feed, so there is one entry. */
+    private static final String KEY = "'feed'";
+
     private static final Logger log = LoggerFactory.getLogger(RestaurantFeedClient.class);
 
     private final RestClient restClient;
@@ -44,7 +47,7 @@ public class RestaurantFeedClient {
      * @throws FeedUnavailableException if the feed is unreachable, times out, returns an error status or invalid JSON
      *                                  (after any retries), or the circuit breaker is open
      */
-    @Cacheable(cacheNames = CACHE, sync = true)
+    @Cacheable(cacheNames = CACHE, key = KEY, sync = true)
     public RestaurantFeed fetch() {
         return resilience.call(this::fetchOnce);
     }

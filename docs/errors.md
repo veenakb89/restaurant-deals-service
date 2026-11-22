@@ -38,5 +38,4 @@ Every error returns the same JSON body (`application/json`), and the HTTP status
 
 - **One place:** all errors, including Spring's own (missing parameter, unknown URL, wrong method), go through one global handler (`GlobalExceptionHandler`). Security errors (401/403) are written by `JsonSecurityErrorHandler`, using the same body.
 - **Docs match responses:** the Swagger schema for errors is the real response class, and a strict JSON test checks the response format.
-- **401 and 403** also carry the standard `WWW-Authenticate: Bearer ...` header, which says why a token was rejected. The body never does.
 - **401 before 404:** under `/api/`, a request without a token gets `401` even for an unknown URL, so the API doesn't reveal which URLs exist. With a token, it's `404`.

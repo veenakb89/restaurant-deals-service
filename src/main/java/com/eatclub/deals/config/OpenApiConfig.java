@@ -21,7 +21,15 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Restaurant Deals API")
                         .version(version)
-                        .description("Consumes and transforms restaurant deal data from the EatClub restaurant feed."))
+                        .description("""
+                                Find restaurant deals that are active at a given time of day, and the time window \
+                                when the most deals are available. Data comes from the EatClub restaurant feed.
+
+                                - **Active deals:** `GET /api/v1/deals?timeOfDay=3:00pm` accepts `3:00pm` or `15:00`.
+                                - **Peak time:** `GET /api/v1/deals/peak-time`.
+
+                                Both endpoints need a bearer token: get one from `POST /oauth2/token`, then click \
+                                **Authorize**."""))
                 .components(new Components().addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
                         .type(SecurityScheme.Type.HTTP)
                         .scheme("bearer")

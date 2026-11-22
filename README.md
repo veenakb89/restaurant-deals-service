@@ -41,50 +41,9 @@ Or use **Swagger UI** at <http://localhost:8080/swagger-ui.html>: call `POST /oa
 | `GET /actuator/health` (and `/liveness`, `/readiness`) | Public | Health status |
 | `GET /actuator/metrics` | Bearer token | Metrics |
 
-**`timeOfDay`** is a 12-hour time with `am`/`pm` and no space (`3:00pm`, `10:30AM`), or a 24-hour time (`15:00`). Hour and minutes are separated by `:`; leading and trailing spaces are ignored.
+**`timeOfDay`:** `3:00pm`, `10:30AM` or `15:00`.
 
-`GET /api/v1/deals?timeOfDay=6:00pm`:
-
-```json
-{
-  "deals": [
-    {
-      "restaurantObjectId": "DEA567C5-F64C-3C03-FF00-E3B24909BE00",
-      "restaurantName": "Masala Kitchen",
-      "restaurantAddress1": "55 Walsh Street",
-      "restarantSuburb": "Lower East",
-      "restaurantOpen": "3:00pm",
-      "restaurantClose": "9:00pm",
-      "dealObjectId": "DEA567C5-0000-3C03-FF00-E3B24909BE00",
-      "discount": "50",
-      "dineIn": "false",
-      "lightning": "true",
-      "qtyLeft": "5"
-    }
-  ]
-}
-```
-
-### Example results: 3pm, 6pm and 9pm
-
-What `GET /api/v1/deals?timeOfDay=…` returns for the three test cases, using the live feed. A restaurant's opening time is included and its closing time is not, so a restaurant that closes at 9:00pm isn't in the 9:00pm results.
-
-| `timeOfDay` | Deals | Restaurants (number of deals) |
-|---|---|---|
-| `3:00pm` | 5 | Masala Kitchen (2), ABC Chicken (2), Kekou (1) |
-| `6:00pm` | 9 | Masala Kitchen (2), ABC Chicken (2), Vrindavan (1), Kekou (2), Gyoza Gyoza Melbourne Central (2) |
-| `9:00pm` | 4 | ABC Chicken (2), Gyoza Gyoza Melbourne Central (2) |
-
-
-`GET /api/v1/deals/peak-time` (the start is inclusive and the end exclusive):
-
-```json
-{ "peakTimeStart": "6:00pm", "peakTimeEnd": "9:00pm" }
-```
-
-Errors share one format, e.g. `{"error":{"type":"invalid_request_error","code":"invalid_time_of_day","message":"...","param":"timeOfDay"}}`. See [docs/errors.md](docs/errors.md) for every code.
-
-**Versioning:** the version is in the path (`/api/v1`). A breaking change would be published as `/api/v2` alongside v1, so existing clients keep working while they move over. Additive changes, such as a new optional field, stay in v1.
+Request and response examples and versioning: [docs/api.md](docs/api.md). Errors: [docs/errors.md](docs/errors.md). Live docs: Swagger UI (see Quick start).
 
 ## How it works
 
@@ -106,8 +65,6 @@ flowchart LR
 2. Spring Security checks the JWT: signature, expiry, issuer, audience and scope.
 3. `DealService` gets the feed (from the cache, or upstream with retry and a circuit breaker), works out each deal's hours, and then filters by time (Task 1) or finds the peak (Task 2).
 
-The upstream JSON models (`client/model`) are kept separate from the API's response classes (`dto`), so a change in the upstream format doesn't leak into this API's contract.
-
 ## Configuration
 
 All settings are in `src/main/resources/application.properties`.
@@ -123,28 +80,18 @@ All settings are in `src/main/resources/application.properties`.
 | `security.jwt.secret` | a local-only default | Signing secret. **Set `JWT_SECRET` (32+ characters) outside local runs.** |
 | `logging.level.com.eatclub.deals` | `INFO` | `DEBUG` also logs each upstream call |
 
-Invalid values (e.g. a blank URL, a short secret, 0 retry attempts) stop the app from starting.
 
 ## Test
 
 ```bash
-./mvnw test                                # unit tests only (fast, no Spring context)
+./mvnw test                                # unit tests only
 ./mvnw verify                              # unit tests, then integration tests
 ```
 
-The tests use a snapshot of the feed (`src/test/resources/challengedata.json`), so they don't need network access.
+- **Unit tests** (`*Test`): one class at a time, with its dependencies mocked: business rules, time parsing, the controller, the feed client.
+- **Integration tests** (`*IT`, in `integration/`): the whole app with only the upstream feed mocked, including strict JSON checks of the 3pm, 6pm and 9pm responses.
 
-**Unit tests** (`*Test`, next to the code they test): one class at a time, with its dependencies mocked or not needed.
-- `service/DealServiceTest`: the business rules (which deals are active when, and the peak window).
-- `time/`: parsing and formatting `timeOfDay`, opening-hours windows.
-- `controller/DealControllerTest`: the controller alone (`@WebMvcTest`, service mocked): parses `timeOfDay`, calls the service, maps the result.
-- Also: the feed client against a local HTTP server, retry and circuit breaker, error handler, logging filter, settings validation.
-
-**Integration tests** (`*IT`, in `integration/`): the whole app (`@SpringBootTest`) with only the upstream feed mocked or stubbed.
-- `api/`: each endpoint end to end: `ActiveDealsApiIT` (strict JSON contract at 3pm, 6pm and 9pm, every accepted and rejected `timeOfDay`), `PeakTimeApiIT`, `ApiErrorResponsesIT`.
-- `security/`: real tokens against the real security rules (`ApiAuthorizationIT`, `TokenEndpointIT`).
-- `client/FeedCacheIT`: the real feed client with its cache, against a local HTTP server.
-- `actuator/ActuatorIT`: health checks and metrics.
+The tests use a saved copy of the feed (`src/test/resources/challengedata.json`), so they need no network access. See [docs/testing.md](docs/testing.md) for the details and the results for the 3pm, 6pm and 9pm test cases.
 
 ## Project structure
 
@@ -160,7 +107,7 @@ src/main/java/com/eatclub/deals
 ├── security/       Token checks (SecurityConfig), JSON 401/403 (JsonSecurityErrorHandler), JWT settings (JwtConfig)
 │   └── issuer/     Demo token endpoint (TokenController, TokenService, TokenResponse)
 ├── logging/        Request ID and per-request summary line (RequestLoggingFilter)
-├── config/         OpenAPI/Swagger, the app's Clock
+├── config/         OpenAPI/Swagger, caching, the app's Clock
 └── time/           Time parsing and formatting, opening-hours windows (TimeWindow)
 ```
 
@@ -173,7 +120,9 @@ Java 21 · Spring Boot 4 (Web MVC, Security OAuth2 resource server, Validation, 
 | Document | Contents |
 |---|---|
 | [docs/database-design.md](docs/database-design.md) | **Task 3:** the database choice (PostgreSQL) and why, the ER diagram, notes, the schema (DDL) and example queries |
-| [docs/business-rules.md](docs/business-rules.md) | How active deals and the peak are decided, as questions and answers (with the items to confirm with the product owner) |
+| [docs/business-rules.md](docs/business-rules.md) | How active deals and the peak are decided, as questions and answers. All are assumptions to confirm with the product owner |
+| [docs/api.md](docs/api.md) | Both endpoints in detail: `timeOfDay` rules, example responses, versioning |
 | [docs/errors.md](docs/errors.md) | The error format and every error code |
+| [docs/testing.md](docs/testing.md) | How the tests are organised, and the results for the 3pm, 6pm and 9pm test cases (both APIs) |
 | [docs/security.md](docs/security.md) | The token flow, what makes a token valid, and the demo shortcuts vs production |
 | [docs/operations.md](docs/operations.md) | Feed cache, timeouts, retry and circuit breaker; health and metrics; logging |
