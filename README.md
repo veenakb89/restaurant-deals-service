@@ -6,7 +6,7 @@ A Spring Boot REST API that reads restaurant deal data from <https://eccdn.com.a
 - **Task 2:** when is the peak, the time window with the most active deals?
 - **Task 3:** a database design for storing the feed: PostgreSQL, with an ER diagram, notes and the schema. See [docs/database-design.md](docs/database-design.md).
 
-**Features:** versioned REST API (`/api/v1`) · JWT bearer-token security · one consistent error format · 60s feed cache, retry and circuit breaker · health checks and metrics · request IDs in every log line · Swagger UI · 210 tests.
+**Features:** versioned REST API (`/api/v1`) · JWT bearer-token security · one consistent error format · 60s feed cache, retry and circuit breaker · health checks and metrics · request IDs in every log line · Swagger UI · 283 tests.
 
 ## Quick start
 
@@ -128,10 +128,23 @@ Invalid values (e.g. a blank URL, a short secret, 0 retry attempts) stop the app
 ## Test
 
 ```bash
-./mvnw test                                # Windows: mvnw.cmd test
+./mvnw test                                # unit tests only (fast, no Spring context)
+./mvnw verify                              # unit tests, then integration tests
 ```
 
-The tests use a snapshot of the feed (`src/test/resources/challengedata.json`), so they don't need network access. They include a strict JSON contract test, parameterised tests for every accepted and rejected `timeOfDay`, real-HTTP tests of the feed client, and security tests for every kind of invalid token.
+The tests use a snapshot of the feed (`src/test/resources/challengedata.json`), so they don't need network access.
+
+**Unit tests** (`*Test`, next to the code they test): one class at a time, with its dependencies mocked or not needed.
+- `service/DealServiceTest`: the business rules (which deals are active when, and the peak window).
+- `time/`: parsing and formatting `timeOfDay`, opening-hours windows.
+- `controller/DealControllerTest`: the controller alone (`@WebMvcTest`, service mocked): parses `timeOfDay`, calls the service, maps the result.
+- Also: the feed client against a local HTTP server, retry and circuit breaker, error handler, logging filter, settings validation.
+
+**Integration tests** (`*IT`, in `integration/`): the whole app (`@SpringBootTest`) with only the upstream feed mocked or stubbed.
+- `api/`: each endpoint end to end: `ActiveDealsApiIT` (strict JSON contract at 3pm, 6pm and 9pm, every accepted and rejected `timeOfDay`), `PeakTimeApiIT`, `ApiErrorResponsesIT`.
+- `security/`: real tokens against the real security rules (`ApiAuthorizationIT`, `TokenEndpointIT`).
+- `client/FeedCacheIT`: the real feed client with its cache, against a local HTTP server.
+- `actuator/ActuatorIT`: health checks and metrics.
 
 ## Project structure
 

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for the fallback paths of {@link GlobalExceptionHandler#handleExceptionInternal}: Spring MVC errors
- * that have no specific {@link ErrorCode}. The specific cases are covered end-to-end in {@code DealControllerTest}.
+ * that have no specific {@link ErrorCode}. The specific cases are covered end-to-end in {@code ApiErrorResponsesIT} (integration tests).
  */
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {

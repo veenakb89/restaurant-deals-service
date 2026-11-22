@@ -1,7 +1,8 @@
-package com.eatclub.deals.security;
+package com.eatclub.deals.integration.security;
 
 import com.eatclub.deals.TestFeeds;
 import com.eatclub.deals.client.RestaurantFeedClient;
+import com.eatclub.deals.security.JwtProperties;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
-class ApiAuthorizationTest {
+class ApiAuthorizationIT {
 
     private static final String DEALS = "/api/v1/deals?timeOfDay=6:00pm";
     private static final String PEAK_TIME = "/api/v1/deals/peak-time";

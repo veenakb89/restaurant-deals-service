@@ -1,4 +1,4 @@
-package com.eatclub.deals;
+package com.eatclub.deals.integration.actuator;
 
 import com.eatclub.deals.client.RestaurantFeedClient;
 import com.eatclub.deals.security.issuer.TokenService;
@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Health checks are public; metrics need a valid access token. */
 @SpringBootTest
 @AutoConfigureMockMvc
-class ActuatorTest {
+class ActuatorIT {
 
     @Autowired
     private MockMvc mockMvc;

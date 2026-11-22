@@ -1,5 +1,6 @@
-package com.eatclub.deals.client;
+package com.eatclub.deals.integration.client;
 
+import com.eatclub.deals.client.RestaurantFeedClient;
 import com.eatclub.deals.exception.FeedUnavailableException;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -28,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         // The circuit breaker is shared by these tests; keep it closed so only the cache is being tested.
         "restaurant-feed.circuit-breaker.sliding-window-size=100",
         "restaurant-feed.circuit-breaker.minimum-calls=100"})
-class FeedCacheTest {
+class FeedCacheIT {
 
     private static final String FEED = "{\"restaurants\":[{\"objectId\":\"r1\",\"name\":\"Test\"}]}";
     private static final AtomicInteger hits = new AtomicInteger();

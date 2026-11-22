@@ -1,4 +1,4 @@
-package com.eatclub.deals.security.issuer;
+package com.eatclub.deals.integration.security;
 
 import com.eatclub.deals.client.RestaurantFeedClient;
 import com.jayway.jsonpath.JsonPath;
@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class TokenEndpointTest {
+class TokenEndpointIT {
 
     @Autowired
     private MockMvc mockMvc;
