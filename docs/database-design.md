@@ -1,6 +1,6 @@
 # Task 3: Database design
 
-A schema for storing the data returned by <https://eccdn.com.au/misc/challengedata.json>. The design only, nothing is built or deployed.
+A schema for storing the data returned by <https://eccdn.com.au/misc/challengedata.json>.
 
 ## Database: PostgreSQL
 
@@ -10,7 +10,7 @@ A schema for storing the data returned by <https://eccdn.com.au/misc/challengeda
 - **The schema can enforce the data rules** that the feed breaks today: real number and boolean types instead of strings, deal hours as "both or neither", `qtyLeft ≥ 0`, discounts between 0 and 100, and unique deals per restaurant.
 - **It's flexible for new questions** (deals by suburb or cuisine, dine-in only, top discounts): a new query, and maybe an index, rather than a redesign.
 - **It's transactional:** safe updates such as decrementing `qty_left` when a deal is redeemed.
-- **It's widely supported and managed:** e.g. AWS RDS or Aurora, Azure Database for PostgreSQL or Google Cloud SQL.
+- **It's widely supported and managed.**
 
 DynamoDB would be the better fit for purely key-based access ("deals for restaurant X") at very large scale, or in a serverless AWS setup. That isn't this data's main access pattern.
 
@@ -92,12 +92,6 @@ erDiagram
 **Indexes**
 - The primary keys and the `UNIQUE (restaurant_object_id, object_id)` constraint already index the main lookups, including all deals of a restaurant.
 - `restaurant_cuisine (cuisine_id)` for "restaurants by cuisine", and `restaurant (suburb)` for "deals by suburb".
-- No index on the deal times yet: a time-range filter that can cross midnight benefits little from a B-tree index, and the data is small. If it grows, the options are an index on a time range type, or a precomputed "active minutes" table.
-
-**Possible extensions (not needed for the current feed)**
-- Opening hours **per weekday**: a `restaurant_opening_hours (restaurant_object_id, weekday, open_time, close_time)` table, because the feed has one set of hours for every day today.
-- Deal **history and redemptions**: a `deal_redemption` table referencing `deal.id`.
-- Restaurant **locations**: latitude and longitude (with PostGIS) for "deals near me".
 
 ## Schema (DDL)
 
